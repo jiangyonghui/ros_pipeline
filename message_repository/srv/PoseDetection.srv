@@ -1,0 +1,8 @@
+sensor_msgs/Image image
+uint32 frame_id
+OpenposePoint net_resolution
+OpenposePoint output_resolution
+uint32 num_scales
+float64 scale_gap
+---
+PersonDetection[] detections
