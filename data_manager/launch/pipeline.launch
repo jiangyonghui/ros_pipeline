@@ -1,0 +1,8 @@
+<launch>
+	<node pkg="cv_camera" name="cv_camera" type="cv_camera_node" launch-prefix="gnome-terminal --command" output="screen">
+		<param name="device_id" value="1"/>
+	</node>
+	<node pkg="openpose_ros" name="openpose_ros" type="openpose_ros" launch-prefix="gnome-terminal --command" output="screen"/>
+	<node pkg="data_manager" name="data_manager" type="data_manager" launch-prefix="gnome-terminal --command" output="screen"/>
+	<node pkg="pose_net" name="pose_net" type="pose_net" launch-prefix="gnome-terminal --command" output="screen"/>
+</launch>

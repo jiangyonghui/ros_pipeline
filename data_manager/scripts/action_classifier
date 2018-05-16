@@ -1,0 +1,106 @@
+#!/usr/bin/env python
+
+import rospy
+import roslib
+import numpy as np
+import h5py
+
+from message_repository.srv import ActionClassifier
+import std_msgs.msg
+
+class ActionClassifierClient:
+	def __init__(self):
+		self.tensor_repo = []
+		self.label = []
+	
+	# load tensor repository
+	def load_tensor_repo(self, tensor_file):
+		with h5py.File(tensor_file, 'r') as f:
+			self.tensor_repo = f['/dataset'][()]
+			self.label = f['/label'][()]
+
+		dim = self.tensor_repo.shape
+		num_frames = dim[3]
+		num_nodes = dim[2]
+		num_channels = dim[1]
+		num_tensor = dim[0]
+		input_shape = (num_frames, num_nodes, num_channels)
+
+		self.tensor_repo = self.tensor_repo.reshape(num_tensor, num_frames, num_nodes, num_channels)
+
+		print ("input shape: {0}".format(input_shape))
+		print ("tensor repository shape: {0}".format(self.tensor_repo.shape))
+		
+		return
+	
+	# convert tensor to MultiArray msg	
+	def tensorToMultiArrayMsg(self, tensor):
+		msg = std_msgs.msg.Float32MultiArray()
+		tensor_shape = tensor.shape
+		num_frames = tensor_shape[0]
+		num_nodes = tensor_shape[1]
+		num_channels = tensor_shape[2]
+	
+		# Set up layout dimensions
+		frame_dim = std_msgs.msg.MultiArrayDimension()
+		frame_dim.label = 'frame'
+		frame_dim.size = num_frames
+	
+		node_dim = std_msgs.msg.MultiArrayDimension()
+		node_dim.label = 'node'
+		node_dim.size = num_nodes
+	
+		channel_dim = std_msgs.msg.MultiArrayDimension()
+		channel_dim.label = 'channel'
+		channel_dim.size = num_channels
+	
+		msg.layout.data_offset = 0
+		msg.layout.dim = [frame_dim, node_dim, channel_dim]
+		
+		index = 0
+		
+		for i in range(0, num_frames):
+			for j in range(0, num_nodes):
+				for k in range(0, num_channels):
+					msg.data.append(tensor[i,j,k])
+					index += 1
+	
+		return msg		
+		
+	# action classifier
+	def actionClassifierClient(self):
+		rospy.wait_for_service('action_classifier')
+		
+		try:
+			action_classifier_client = rospy.ServiceProxy('action_classifier', ActionClassifier)
+			index = 0
+	
+			while not rospy.is_shutdown():
+				tensor = self.tensor_repo[index,]
+				msg = self.tensorToMultiArrayMsg(tensor)
+				predicted_label = action_classifier_client(msg)
+				print("predicted {0} | actual label: {1}".format(predicted_label, int(self.label[index])))
+				index += 1
+				rospy.sleep(0.5)
+	
+		except rospy.ServiceException, e:
+			print("Service call failed: {0}".format(e))
+		
+		return
+
+
+if __name__ == "__main__":
+	print("Data Manager -- Action Classification Client")
+	print("--------------------------------------------")
+	action_classifier = ActionClassifierClient()
+	tensor_file = "/home/nvidia/PoseNet/h5_files_pose_tensor/Airport/pos_norm_torso_scaled_interpolated_traindata_5735half_fc2.h5"
+	action_classifier.load_tensor_repo(tensor_file)
+	action_classifier.actionClassifierClient()
+	
+	
+	
+	
+	
+	
+	
+
