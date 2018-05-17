@@ -66,6 +66,15 @@ target_link_libraries(openpose_ros 	${catkin_LIBRARIES}
 				   					${OpenCV_LIBRARIES})
 add_dependencies(openpose_ros ${catkin_EXPORTED_TARGETS})
 
+add_executable(openpose src/openpose.cpp)
+target_link_libraries(openpose   	${catkin_LIBRARIES} 
+				   					${OPENPOSE_LIBRARY} 
+				   					${CAFFE_LIBRARY} 
+				   					${CUDA_LIBRARY} 
+				   					${GFLAGS_LIBRARY} 
+				   					${GLOG_LIBRARY}
+				   					${OpenCV_LIBRARIES})
+
 
 
 
