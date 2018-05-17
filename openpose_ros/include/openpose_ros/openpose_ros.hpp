@@ -93,6 +93,8 @@ message_repository::BodypartDetection getBodyPartDetectionFromArrayAndIndex(cons
 message_repository::BodypartDetection getNANBodypart() 
 {
   	message_repository::BodypartDetection bodypart;
+  	bodypart.x = NAN;
+  	bodypart.y = NAN;
   	bodypart.confidence = NAN;
   	
   	return bodypart;
@@ -195,7 +197,7 @@ bool retrievePoseInfo(const op::Array<float>& poseKeypoints, ros::Publisher& key
 				person_msg.right_ear = bodypart_detection;
 		  	else if (body_part_string == "LEar")
 				person_msg.left_ear = bodypart_detection;
-		  	else if (body_part_string == "Background")
+		  	else if (body_part_string == "Bkg")
 		  	{
 		  		person_msg.background.x = 0.;
 		  		person_msg.background.y = 0.;
