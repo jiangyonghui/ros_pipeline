@@ -54,9 +54,14 @@ find_library(CAFFE_LIBRARY caffe /home/nvidia/MasterThesis/code/ros_pipeline/3rd
 find_library(CUDA_LIBRARY cuda /usr/local/cuda/lib64)
 find_library(GFLAGS_LIBRARY gflags /usr/lib/aarch64-linux-gnu)
 find_library(GLOG_LIBRARY glog /usr/lib/aarch64-linux-gnu)
+find_library(PTHREAD_LIBRARY pthread /usr/lib/aarch64-linux-gnu)
+
+set(OPENPOSE_ROS_SRC_LIST
+    src/openposeROS.cpp
+    src/rosImageSubscriber.cpp)
 
 
-add_executable(openpose_ros src/openpose_ros.cpp)
+add_executable(openpose_ros src/openpose_ros.cpp ${OPENPOSE_ROS_SRC_LIST})
 target_link_libraries(openpose_ros 	${catkin_LIBRARIES} 
 				   					${OPENPOSE_LIBRARY} 
 				   					${CAFFE_LIBRARY} 
@@ -75,7 +80,13 @@ target_link_libraries(openpose   	${catkin_LIBRARIES}
 				   					${GLOG_LIBRARY}
 				   					${OpenCV_LIBRARIES})
 
-
+add_executable(image_seq_reader src/imageSeqReader.cpp)
+target_link_libraries(image_seq_reader	${catkin_LIBRARIES}   
+				   						${GFLAGS_LIBRARY} 
+				   						${GLOG_LIBRARY}
+				   						${OpenCV_LIBRARIES}
+				   						${PTHREAD_LIBRARY})
+add_dependencies(image_seq_reader	${catkin_EXPORTED_TARGETS})
 
 
 

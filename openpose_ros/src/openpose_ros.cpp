@@ -31,7 +31,8 @@
 #include <gflags/gflags.h> // DEFINE_bool, DEFINE_int32, DEFINE_int64, DEFINE_uint64, DEFINE_double, DEFINE_string
 #include <glog/logging.h> // google::InitGoogleLogging
 
-#include <openpose_ros/openpose_ros.hpp>
+// local defined classes and funcs
+#include "openpose_ros/header.hpp"
 
 // OpenPose
 std::string model_folder_location = "/home/nvidia/MasterThesis/code/ros_pipeline/3rdPartyLib/openpose/models/";
@@ -140,13 +141,13 @@ int openPoseDetection()
   	ros::Publisher keypoints_pub = nh.advertise<message_repository::PersonDetection>("/openpose_ros/detected_poses_keypoints", 0);
 
     // Initialize cv_ptr
-    sensor_msgs::Image ros_image;
-    ros_image.encoding = sensor_msgs::image_encodings::BGR8;
-    cv_bridge::CvImagePtr cv_ptr;
-    cv_ptr = cv_bridge::toCvCopy(ros_image, ros_image.encoding);
+//    sensor_msgs::Image ros_image;
+//    ros_image.encoding = sensor_msgs::image_encodings::BGR8;
+//    cv_bridge::CvImagePtr cv_ptr;
+//    cv_ptr = cv_bridge::toCvCopy(ros_image, ros_image.encoding);
 
     // Initialize the image subscriber
-    RosImgSub rosImgSubscriber(FLAGS_camera_topic);
+    RosImgSub rosImgSubscriber(nh, FLAGS_camera_topic);
 
     int frame_id = 0;
     const std::chrono::high_resolution_clock::time_point timerBegin = std::chrono::high_resolution_clock::now();
@@ -222,13 +223,16 @@ int openPoseDetection()
   			retrievePoseInfo(poseKeypoints, keypoints_pub, bodypartMap);
   			op::log("------------------------------------------------------------------------------");
   			
-//  			if(FLAGS_save_json_keypoints)
-//  			{
-//  				saveJsonKeypoints(poseKeypoints, FLAGS_keypoints_folder, frame_id);
-//  			}
-  			
-  			// reset cvImagePtr for next frame
-            rosImgSubscriber.resetCvImgPtr();
+  			if(FLAGS_save_json_keypoints)
+  			{
+  				std::shared_ptr<op::KeypointSaver> keypointJsonSaver(new op::KeypointSaver(FLAGS_keypoints_folder, op::DataFormat::Json));
+  				
+  				std::string fileName = "keypoints_" + op::toFixedLengthString(frame_id, 3u);
+  				std::string keypointName = "pose_keypoints";
+  				std::vector<op::Array<float>> keypointVector{poseKeypoints};
+  				
+  				keypointJsonSaver->saveKeypoints(keypointVector, fileName, keypointName);
+  			}
             
             ++frame_id;
         }

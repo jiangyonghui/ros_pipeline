@@ -52,6 +52,8 @@ void OpenposeKpSub::subscriberCallback(const message_repository::PersonDetection
 {
     // extract node keypoints from kp_msg and store them in node_kp_
 	ROS_INFO("Calling node keypoints extraction ...");
+	
+	// TODO: nodeKp_ and node_, std::shared_ptr ?
 	std::vector<float> node_;
 	
 	for (auto bodypart_idx : node_seq_) 
@@ -148,9 +150,9 @@ void OpenposeKpSub::subscriberCallback(const message_repository::PersonDetection
 			node_.push_back(kp_msg->left_ear.x);
 			node_.push_back(kp_msg->left_ear.y);
 	  	} 
-	  	else if (body_part_string == "Bkg") 
+	  	else if (body_part_string == "Background") 
 	  	{
-			ROS_INFO("Background! No Effective Info!");
+			ROS_WARN("Background! Check the node sequence!");
 	  	}
 	  	else
 	  	{

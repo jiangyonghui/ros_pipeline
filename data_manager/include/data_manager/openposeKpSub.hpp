@@ -30,7 +30,7 @@ public:
     void initializeSubscriber();
     void subscriberCallback(const message_repository::PersonDetectionConstPtr& kp_msg);
     std::vector<float> getNodeKeypoints();
-    void resetNodeKeypoints();   
+    void resetNodeKeypoints(); 
 };
 
 #endif
