@@ -1,83 +1,15 @@
 #ifndef OPENPOSE_ROS_HPP
 #define OPENPOSE_ROS_HPP
 
-#include <openpose/headers.hpp>
-
+#include <openpose/core/headers.hpp>
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 #include <message_repository/PersonDetection.h>
 
 
-// ROS Image Subscriber to camera_topic
-class RosImgSub
-{
-    private:
-        ros::NodeHandle nh_;
-        image_transport::ImageTransport it_;
-        image_transport::Subscriber image_sub_;
-        cv_bridge::CvImagePtr cv_img_ptr_;
-
-    public:
-        RosImgSub(const std::string& image_topic): it_(nh_)
-        {
-            // Subscribe to input video feed and publish output video feed
-            image_sub_ = it_.subscribe(image_topic, 1, &RosImgSub::convertImage, this);
-            cv_img_ptr_ = nullptr;
-        }
-        
-        ~RosImgSub()
-        {
-        	ROS_INFO("Stop Image Subscription.");
-        }
-
-        void convertImage(const sensor_msgs::ImageConstPtr& msg)
-        {
-            try
-            {
-                cv_img_ptr_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-            }
-            catch (cv_bridge::Exception& e)
-            {
-                ROS_ERROR("cv_bridge exception: %s", e.what());
-                return;
-            }
-        }
-
-        cv_bridge::CvImagePtr& getCvImagePtr()
-        {
-            return cv_img_ptr_;
-        }
-        
-        void resetCvImgPtr()
-        {
-        	cv_img_ptr_ = nullptr;
-        	return;
-        }
-};
-
-
-// get bodypart map
-//std::map<unsigned int, std::string> getBodyPartMapFromPoseModel(const op::PoseModel &pose_model) 
-//{
-//  	if (pose_model == op::PoseModel::COCO_18) 
-//  	{
-//    	return op::POSE_COCO_BODY_PARTS;
-//  	}	 
-//  	else if (pose_model == op::PoseModel::MPI_15 || pose_model == op::PoseModel::MPI_15_4) 
-//    {
-//    	return op::POSE_MPI_BODY_PARTS;
-//  	} 
-//  	else 
-//  	{
-//    	ROS_FATAL("Invalid pose model, not map present");
-//    	exit(1);
-//  	}
-//}
-
-
 // bodypart detection
-message_repository::BodypartDetection getBodyPartDetectionFromArrayAndIndex(const op::Array<float> &array, size_t idx) 
+message_repository::BodypartDetection getBodyPartDetectionFromArrayAndIndex(const op::Array<float>& array, size_t idx) 
 {
   	message_repository::BodypartDetection bodypart;
 
@@ -93,6 +25,8 @@ message_repository::BodypartDetection getBodyPartDetectionFromArrayAndIndex(cons
 message_repository::BodypartDetection getNANBodypart() 
 {
   	message_repository::BodypartDetection bodypart;
+  	bodypart.x = NAN;
+  	bodypart.y = NAN;
   	bodypart.confidence = NAN;
   	
   	return bodypart;
@@ -116,7 +50,10 @@ bool retrievePoseInfo(const op::Array<float>& poseKeypoints, ros::Publisher& key
   	ROS_INFO("Detected Person(s): %d", num_people);
   	op::log("---------------------------");
 
-  	for (size_t person_idx = 0; person_idx < num_people; person_idx++) 
+  	//for (size_t person_idx = 0; person_idx < num_people; person_idx++) 
+  	// TODO: person tracking ...
+  	// silly output the first detected person
+  	for (size_t person_idx = 0; person_idx < 1; person_idx++)
   	{
     	op::log(" ");
     	ROS_INFO("Person ID: %zu", person_idx);
@@ -197,9 +134,7 @@ bool retrievePoseInfo(const op::Array<float>& poseKeypoints, ros::Publisher& key
 				person_msg.left_ear = bodypart_detection;
 		  	else if (body_part_string == "Background")
 		  	{
-		  		person_msg.background.x = 0.;
-		  		person_msg.background.y = 0.;
-		  		person_msg.background.confidence = 1.0;
+		  		ROS_INFO("Woops! This is Background!");
 		  	}
 		  	else 
 		  	{
@@ -218,32 +153,6 @@ bool retrievePoseInfo(const op::Array<float>& poseKeypoints, ros::Publisher& key
 	
 	return true;
 }
-
-//bool saveJsonKeypoints(const op::Array<float>& poseKeypoints, const std::string& keypointsFolder, const int& frame_id)
-//{
-//	std::shared_ptr<op::KeypointJsonSaver> keypointJsonSaver(new op::KeypointJsonSaver(keypointsFolder));	
-//	
-//	const bool humanReadable = true;
-//	const auto stringLength = 12u;
-
-//	// extendible for hand and face keypoints
-//	const std::vector<std::pair<op::Array<float>, std::string>> keypointVector
-//	{
-//    	std::make_pair(poseKeypoints, "pose_keypoints")
-//    	// std::make_pair(handKeypoints, "hand_keypoints"),
-//    	// std::make_pair(faceKeypoints, "face_keypoints")
-//	};
-
-//	std::string fileName = "keypoints_" + op::toFixedLengthString(frame_id, stringLength);
-//	
-//	ROS_INFO("Writing keypoints to file ...");
-//	keypointJsonSaver->save(keypointVector, fileName, humanReadable);
-
-//	ROS_INFO("Keypoints saved");
-//	
-//	return true;
-//}
-
 
 
 #endif

@@ -36,8 +36,6 @@
 #include <gflags/gflags.h> // DEFINE_bool, DEFINE_int32, DEFINE_int64, DEFINE_uint64, DEFINE_double, DEFINE_string
 #include <glog/logging.h>  // google::InitGoogleLogging
 
-#include <sstream> // std::ostringstream
-
 	
 DEFINE_string(pose_topic,				"/openpose_ros/detected_poses_keypoints", 	"Subscribe to pose topic that OpenPose publishes.");              
 DEFINE_string(model_pose, 				"COCO", 								  	"Model to be used (e.g. COCO, MPI, MPI_4_layers).");
@@ -334,13 +332,9 @@ int ActionProposalAndClassifierClient() {
 //					if (FLAGS_output_tensor_repository) 
 //					{
 //				  		ROS_INFO("Ready for outputing tensor repository");
-
 //				  		// write to file
 //				  		std::vector<int> tensor_shape{repo_len, node_seq_len * 2, 3};
-
-//				  		std::ostringstream os;
-//				  		os << "test_" << file_id << ".h5";
-//				  		std::string file_name = FLAGS_h5_file_folder + os.str();
+//				  		std::string file_name = FLAGS_h5_file_folder + "test_" + static_cast<std::string>(file_id) + ".h5";
 //				  		WriteTenforRepo(tensorRepo, tensor_shape, file_name);
 //				  		++file_id;
 //					}
@@ -379,7 +373,8 @@ int ActionProposalAndClassifierClient() {
 	return 0;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) 
+{
 	google::InitGoogleLogging("data manager");
   	gflags::ParseCommandLineFlags(&argc, &argv, true);
   	ros::init(argc, argv, "data_manager");
