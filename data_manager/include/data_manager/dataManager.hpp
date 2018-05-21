@@ -46,6 +46,9 @@ struct ActionessHistogram
 // add tensor to repository
 void AddTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int& index);
 
+// pose keypoints interpolation
+bool poseInterpolator(Eigen::Tensor<float, 3>& repo);
+
 // get proposal tensor
 Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int& tensor_id, const int& swindow_len);
 
@@ -61,7 +64,7 @@ void ResampleActionGroup(std::vector<int>& action_group, const int& swindow_len,
 // write tensor to h5 file
 void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name);
 
-// optional: plot actionness proposal --> TODO 
+// optional: plot actionness proposal --> TODO
 // void PlotActionnessProposal(...)
 
 #endif
