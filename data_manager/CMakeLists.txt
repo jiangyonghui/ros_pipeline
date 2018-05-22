@@ -31,7 +31,7 @@ find_package(catkin REQUIRED COMPONENTS
 	image_transport)
 
 find_package(HDF5 COMPONENTS CXX HL)
-find_package(Boost COMPONENTS iostreams filesystem system)
+find_package(Boost COMPONENTS iostreams filesystem system thread)
 
 catkin_package(
   CATKIN_DEPENDS 

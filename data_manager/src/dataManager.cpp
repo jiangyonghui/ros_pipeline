@@ -1,56 +1,116 @@
 #include "data_manager/dataManager.hpp"
+#include "data_manager/spline.h"
 #include <ros/console.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <H5Cpp.h>
 
+
 // add tensor to repository
-void AddTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int& index)
+//void AddTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int& index)
+//{
+//	if (repo.dimension(1) != node_keypoints.size())
+//	{
+//		ROS_ERROR("Tensor repository dimension dismatch node size!");
+//	}
+//	else
+//	{
+//		 for (int i = 0; i < repo.dimension(1); ++i)
+//		 {
+//		 	repo(index,i,0) = node_keypoints.at(i);
+//		 }
+//		
+//		 if (index != 0)
+//		 {
+//		 	for (int n = 0; n < repo.dimension(1); ++n)
+//		 	{
+//		 		repo(index,n,1) = repo(index,n,0) - repo(index-1,n,0);
+//		 	}
+//		
+//		 	for (int k = 0; k < repo.dimension(1); ++k)
+//		 	{
+//		 		repo(index,k,2) = repo(index,k,1) - repo(index-1,k,1);
+//		 	}
+//		 }
+//	}
+
+//	return;
+//}
+
+
+// add tensor to repository
+void addTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int index)
 {
-	if (repo.dimension(1) != node_keypoints.size())
+    
+    if (repo.dimension(1) != node_keypoints.size())
 	{
 		ROS_ERROR("Tensor repository dimension dismatch node size!");
 	}
 	else
 	{
-		// TODO
-
-		// for (int i = 0; i < repo.dimension(1); ++i)
-		// {
-		// 	repo(index,i,0) = node_keypoints.at(i);
-		// }
-		//
-		// if (index != 0)
-		// {
-		// 	for (int n = 0; n < repo.dimension(1); ++n)
-		// 	{
-		// 		repo(index,n,1) = repo(index,n,0) - repo(index-1,n,0);
-		// 	}
-		//
-		// 	for (int k = 0; k < repo.dimension(1); ++k)
-		// 	{
-		// 		repo(index,k,2) = repo(index,k,1) - repo(index-1,k,1);
-		// 	}
-		// }
+	    for (int i = 0; i < repo.dimension(1); ++i)
+		{
+		    repo(index,i,0) = node_keypoints.at(i);
+		}
 	}
-
-	return;
+    
+    return;
 }
 
 
 // pose keypoints interpolation
-bool poseInterpolator(Eigen::Tensor<float, 3>& tensorRepo)
+bool poseInterpolator(Eigen::Tensor<float, 3>& tensorRepo, const int swindow_len)
 {
 	// TODO
 	// find nan in the tensor, store the position(frame_id, node_id)
 	// do interpolation in tensorRepo(:, node_id, 0) and do estimation at frame_id
-
+	//std::vector<InterpolatorList> interpolatorVec;
+	std::vector<float> points, frames, frames_est;
+    for (int col = 0; col < tensorRepo.dimension(2); ++col)
+    {
+        for (int row = 0; row < swindow_len; ++row)
+        {
+            if (tensorRepo(row,col,0) == nan)
+            {
+                frames_est.push_back(row);
+            }
+            else
+            {
+                points.push_back(tensorRepo(row,col,0));
+                frames.push_back(row);
+            }
+        }
+        
+        tk::spline s;
+        s.set_points(frames, points);
+        // estimate point val at frame t
+        for (auto t : frames_est)
+        {
+            tensorRepo(t,col,0) = s(t);
+        }
+    }   
 
 	return true;
 }
 
 
+// calc 3d tensor 
+void calc3DTensor(Eigen::Tensor<float,3>& tensorRepo)
+{
+    for (int frame = 0; frame < tensorRepo.dimension(0))
+    for (int n = 0; n < repo.dimension(1); ++n)
+ 	{
+ 		repo(index,n,1) = repo(index,n,0) - repo(index-1,n,0);
+ 	}
+
+ 	for (int k = 0; k < repo.dimension(1); ++k)
+ 	{
+ 		repo(index,k,2) = repo(index,k,1) - repo(index-1,k,1);
+ 	}
+}
+
+
 // get proposal tensor
-Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int& tensor_id, const int& swindow_len)
+Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int tensor_id, const int swindow_len)
 {
 	Eigen::array<Eigen::Index, 3> offsets = {(tensor_id+1-swindow_len), 0, 0};
 	Eigen::array<Eigen::Index, 3> extents = {swindow_len, repo.dimension(1), repo.dimension(2)};
@@ -109,7 +169,7 @@ void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float32Mu
 
 
 // resample action group to size of swindow_len
-void ResampleActionGroup(std::vector<int>& action_group, const int& swindow_len, const int& swindow_str)
+void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, const int swindow_str)
 {
 	std::vector<int> resampled_tensor;
 	int resample_str = std::floor((action_group.size()+swindow_len-1)/swindow_len)*swindow_str;
