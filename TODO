@@ -2,3 +2,4 @@
 - add nodelet alongside nodes
 - check options for ros stack
 - ros-based system architecture
+- check efficient c++ tensor lib (armadillo, itensor, ftensor, ...)
