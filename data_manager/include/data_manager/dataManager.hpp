@@ -5,7 +5,7 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/Float64MultiArray.h>
 
 
 // define bodypart nodes
@@ -42,24 +42,22 @@ struct ActionessHistogram
 	int label;
 };
 
-struct InterpolatorList
-{
-    std::vector<int> missing_frame;
-    int point_pos;
-};
+
+// pose keypoints interpolation
+bool poseInterpolator(arma::mat& mat);
 
 
 // add tensor to repository
-void addTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int index);
+//void addTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int index);
 
-// pose keypoints interpolation
-bool poseInterpolator(Eigen::Tensor<float, 3>& repo, const int swindow_len);
+//// pose keypoints interpolation
+//bool poseInterpolator(Eigen::Tensor<float, 3>& repo, const int swindow_len);
 
-// get proposal tensor
-Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int tensor_id, const int swindow_len);
+//// get proposal tensor
+//Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int tensor_id, const int swindow_len);
 
-// retrieve grouped action tensor
-Eigen::Tensor<float, 3> GetActionTensor(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& action_group);
+//// retrieve grouped action tensor
+//Eigen::Tensor<float, 3> GetActionTensor(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& action_group);
 
 // convert eigen tensor to std_msgs::Float32MultiArray msg
 void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float32MultiArray& msg);

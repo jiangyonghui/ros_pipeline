@@ -1,5 +1,9 @@
 #TODO
-- add nodelet alongside nodes
-- check options for ros stack
-- ros-based system architecture
-- check efficient c++ tensor lib (armadillo, itensor, ftensor, ...)
+- nodelet + nodes
+- ros stack?
+- ros-based distributed system architecture
+- smoothing
+- normalöization (incl. shifting)
+- visualize keypoints before and after smoothing (offline)
+
+

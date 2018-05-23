@@ -40,6 +40,9 @@
 #include <thread>
 #include <mutex>
 
+// 3d tensor: cube
+#include <Armadillo/armadillo>
+
 
 DEFINE_string(pose_topic,				"/openpose_ros/detected_poses_keypoints", 	"Subscribe to pose topic that OpenPose publishes.");
 DEFINE_string(model_pose, 				"COCO", 								  	"Model to be used (e.g. COCO, MPI, MPI_4_layers).");
@@ -67,17 +70,13 @@ std::shared_ptr<nodeKpMap> nodeKpMapPtr(nullptr);
 
 // setting default parameter values
 const auto swindow_str = FLAGS_sliding_window_stride;
-const auto swindow_len = FLAGS_sliding_window_length;
 const auto tensor_str = FLAGS_pose_tensor_stride;
 const auto repo_len = FLAGS_tensor_repository_length;
 const auto tensor_offset = FLAGS_tensor_offset;
 const auto swindow_offset = FLAGS_sliding_window_offset;
-const auto thres_score = FLAGS_actioness_thres_value;
-const auto thres_rate = FLAGS_action_grouping_rate;
 
 const std::vector<int> node_seq{8, 9, 8, 16, 12, 17, 12, 16, 8, 14, 15, 10, 15,
 							        14, 8, 4, 5, 0, 5, 4, 8, 6, 2, 7, 2, 6, 8};
-const auto node_seq_len = node_seq.size();
 const op::PoseModel poseModel = op::flagsToPoseModel(FLAGS_model_pose);
 
 
@@ -90,19 +89,8 @@ void nodeKpSubscriber()
 	op::log("Data Manager -- Action Proposal and Classification Client");
 	op::log("---------------------------------------------------------");
 
-	/*
-	* declare Node Handle
-	* declare action proposal Service and Client
-	* declare action classifier Service and Client
-	* actioness histogram publisher
-	* action label publisher
-	*/
+	// declare action classfication service
 	ros::NodeHandle nh;
-
-//	ros::ServiceClient actionness_proposal_client =
-//		nh.serviceClient<message_repository::ActionnessProposal>("actionness_proposal");
-//	message_repository::ActionnessProposal actionness_proposal_srv;
-
 	ros::ServiceClient action_classifier_client =
 		nh.serviceClient<message_repository::ActionClassifier>("action_classifier");
 	message_repository::ActionClassifier action_classifier_srv;
@@ -110,32 +98,8 @@ void nodeKpSubscriber()
 	// Initialize OpenposeKpSub
 	OpenposeKpSub openposeKpSubscriber(nh, static_cast<const std::string>(FLAGS_pose_topic), node_seq, poseModel);
 
-	/*
-	* sWindow: sliding window, default shape: 10x34x3
-	* tensorRepo: tensor repository, default shape: 100x34x3
-	* action_group: store the head frame of an action, used for realtime action
-	* grouping
-	* actionness_hist: store the hist info of each sliding window for offline action grouping
-	* action_group_hist: store the hist info of each action group in format of (head_id, group_size)
-	*/
-	
-	
-	
-	
-
-//	std::vector<int> action_group;
-//	std::vector<ActionessHistogram> actionness_hist;
-//	std::vector<std::pair<int, int>> action_group_hist;
-
 	int frame_id = -1;
 	int tensor_id = -1;
-	//int swindow_id = -1;
-	//int file_id = 0;
-
-//  calculating actioness_rate = N(1)/(N(0)+N(1))
-//	int num_zero = 0;
-//	int num_one = 0;
-//	float actionness_rate = 0.0;
 
 	// get node extract callback ready
 	ros::spinOnce();
@@ -146,7 +110,7 @@ void nodeKpSubscriber()
 		// TODO: [Issue] if some log goes on here, it turns out weird
 
 		// get body nodes from openpose
-		std::vector<float> nodeKeypoints(openposeKpSubscriber.getNodeKeypoints());
+		std::vector<double> nodeKeypoints(openposeKpSubscriber.getNodeKeypoints());
 		openposeKpSubscriber.resetNodeKeypoints();
 
 		// check if the node keypoints are correctly delivered
@@ -379,23 +343,28 @@ void nodeKpSubscriber()
 // pose tensor preparation and do action classification
 void actionClassifier()
 { 
-    int tensor_id = 0;
-    std::vector<float> nodeKeypoints;
-    Eigen::array<Eigen::Index, 3> swindow_shape = {Eigen::Index(swindow_len), Eigen::Index(2*node_seq.size()), Eigen::Index(3)}; // default: 10x34x3
-	Eigen::Tensor<float, 3> sWindow(swindow_shape);
-	sWindow.setZero();
-	ROS_INFO("Sliding window size: [%lu x %lu x %lu]", swindow_shape[0], swindow_shape[1], swindow_shape[2]);
+    auto tensor_id = 0;
+    std::vector<double> nodeKeypoints;
+    
+    const auto n_rows = FLAGS_sliding_window_length;
+    const auto n_cols = node_seq.size();
+    const auto n_slices = 3;
+    
+    arma::cube::fixed<n_rows, n_cols, n_slices> sWindow;
+    sWindow.zeros();
+
+	ROS_INFO_STREAM("Initialize sliding window with size: [" << n_rows "x" << n_cols << "x" << n_slices << "]");
 	
     while(ros::ok)
     {
-        
-        
+        // TODO
+        std::shared_ptr<arma::vec> nodeKpPtr(nullptr);
         // checkout node kp from shared map
         if (nodeKpMapPtr->size() >= (tensor_id+1))
         {
             // set local mutex to secure data reading from shared map
             std::lock_guard<std::mutex> lock(mutex);
-            nodeKeypoints = nodeKpMapPtr->at(tensor_id); 
+            *nodeKpPtr = nodeKpMapPtr->at(tensor_id); 
         }
         else if (!nodeKpMapPtr)
         {

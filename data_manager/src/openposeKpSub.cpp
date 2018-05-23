@@ -54,7 +54,7 @@ void OpenposeKpSub::subscriberCallback(const message_repository::PersonDetection
 	ROS_INFO("Calling node keypoints extraction ...");
 	
 	// TODO: nodeKp_ and node_, std::shared_ptr ?
-	std::vector<float> node_;
+	std::vector<double> node_;
 	
 	for (auto bodypart_idx : node_seq_) 
 	{
@@ -167,7 +167,7 @@ void OpenposeKpSub::subscriberCallback(const message_repository::PersonDetection
 }
 
 
-std::vector<float> OpenposeKpSub::getNodeKeypoints()
+std::vector<double> OpenposeKpSub::getNodeKeypoints()
 {
     return nodeKp_;
 }

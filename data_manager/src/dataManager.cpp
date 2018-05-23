@@ -5,138 +5,40 @@
 #include <H5Cpp.h>
 
 
-// add tensor to repository
-//void AddTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int& index)
-//{
-//	if (repo.dimension(1) != node_keypoints.size())
-//	{
-//		ROS_ERROR("Tensor repository dimension dismatch node size!");
-//	}
-//	else
-//	{
-//		 for (int i = 0; i < repo.dimension(1); ++i)
-//		 {
-//		 	repo(index,i,0) = node_keypoints.at(i);
-//		 }
-//		
-//		 if (index != 0)
-//		 {
-//		 	for (int n = 0; n < repo.dimension(1); ++n)
-//		 	{
-//		 		repo(index,n,1) = repo(index,n,0) - repo(index-1,n,0);
-//		 	}
-//		
-//		 	for (int k = 0; k < repo.dimension(1); ++k)
-//		 	{
-//		 		repo(index,k,2) = repo(index,k,1) - repo(index-1,k,1);
-//		 	}
-//		 }
-//	}
-
-//	return;
-//}
-
-
-// add tensor to repository
-void addTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int index)
-{
-    
-    if (repo.dimension(1) != node_keypoints.size())
-	{
-		ROS_ERROR("Tensor repository dimension dismatch node size!");
-	}
-	else
-	{
-	    for (int i = 0; i < repo.dimension(1); ++i)
-		{
-		    repo(index,i,0) = node_keypoints.at(i);
-		}
-	}
-    
-    return;
-}
-
-
 // pose keypoints interpolation
-bool poseInterpolator(Eigen::Tensor<float, 3>& tensorRepo, const int swindow_len)
+bool poseInterpolator(arma::mat& mat)
 {
-	// TODO
-	// find nan in the tensor, store the position(frame_id, node_id)
-	// do interpolation in tensorRepo(:, node_id, 0) and do estimation at frame_id
-	//std::vector<InterpolatorList> interpolatorVec;
-	std::vector<float> points, frames, frames_est;
-    for (int col = 0; col < tensorRepo.dimension(2); ++col)
+    const auto n_rows = mat.n_rows;
+    const auto n_cols = mat.n_cols;
+    
+    for (auto i = 0; i < n_cols; ++i)
     {
-        for (int row = 0; row < swindow_len; ++row)
-        {
-            if (tensorRepo(row,col,0) == nan)
-            {
-                frames_est.push_back(row);
-            }
-            else
-            {
-                points.push_back(tensorRepo(row,col,0));
-                frames.push_back(row);
-            }
-        }
-        
         tk::spline s;
-        s.set_points(frames, points);
-        // estimate point val at frame t
-        for (auto t : frames_est)
+        std::vector<double> t(n_rows);
+        std::generate(t.begin(), t.end(), [n=0]() mutable {return n++});
+        s.set_points(t, mat.col(i));
+        
+        for (auto elem : t)
         {
-            tensorRepo(t,col,0) = s(t);
-        }
-    }   
+            mat.col(i).at(elem) = s(elem);
+        }         
+    }
 
-	return true;
+    return true;
 }
 
 
 // calc 3d tensor 
-void calc3DTensor(Eigen::Tensor<float,3>& tensorRepo)
+void calc3DTensor(const arma::vec& mat)
 {
-    for (int frame = 0; frame < tensorRepo.dimension(0))
-    for (int n = 0; n < repo.dimension(1); ++n)
- 	{
- 		repo(index,n,1) = repo(index,n,0) - repo(index-1,n,0);
- 	}
+    // TODO
 
- 	for (int k = 0; k < repo.dimension(1); ++k)
- 	{
- 		repo(index,k,2) = repo(index,k,1) - repo(index-1,k,1);
- 	}
-}
-
-
-// get proposal tensor
-Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int tensor_id, const int swindow_len)
-{
-	Eigen::array<Eigen::Index, 3> offsets = {(tensor_id+1-swindow_len), 0, 0};
-	Eigen::array<Eigen::Index, 3> extents = {swindow_len, repo.dimension(1), repo.dimension(2)};
-	Eigen::Tensor<float, 3> swindow = repo.slice(offsets, extents);
-
-	return swindow;
-}
-
-
-// retrieve grouped action tensor
-Eigen::Tensor<float, 3> GetActionTensor(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& action_group)
-{
-	Eigen::array<Eigen::Index, 3> tensor_shape = {Eigen::Index(action_group.size()), Eigen::Index(tensorRepo.dimension(1)), Eigen::Index(tensorRepo.dimension(2))};
-	Eigen::Tensor<float, 3> action_tensor(tensor_shape);
-
-	for (int i = 0; i < action_group.size(); ++i)
-	{
-		action_tensor.chip(i, 0) = tensorRepo.chip(action_group.at(i), 0);
-	}
-
-	return action_tensor;
+    return;
 }
 
 
 // convert eigen tensor to std_msgs::Int32MultiArray msg
-void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float32MultiArray& msg)
+void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float64MultiArray& msg)
 {
 
 	if (msg.layout.dim.size() != 3)
@@ -192,7 +94,7 @@ void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, 
 
 
 // write tensor to h5 file
-void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
+void WriteTenforRepo(const Eigen::Tensor<double, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
 {
 //	if(!tensorRepo.repo.empty())
 //	{
