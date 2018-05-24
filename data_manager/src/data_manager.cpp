@@ -63,10 +63,13 @@ DEFINE_bool(output_tensor_repository, 	false, 										"Flag for tensor reposit
 DEFINE_string(h5_file_folder, 			"/home/nvidia/data/h5/", 					"Location of output h5 file");
 
 
+typedef std::vector<std::vector<double>> nodeVec;
+
 std::mutex mutex;
-typedef std::map<int, std::vector<float>> nodeKpMap;
+
 // node keypoints map
-std::shared_ptr<nodeKpMap> nodeKpMapPtr(nullptr);
+std::shared_ptr<nodeVec> nodeKpWritePtr = std::make_shared<nodeVec>();
+std::shared_ptr<nodeVec> nodeKpReadPtr(nodeKpWritePtr);
 
 // setting default parameter values
 const auto swindow_str = FLAGS_sliding_window_stride;
@@ -125,7 +128,7 @@ void nodeKpSubscriber()
 				++tensor_id;
 				// add tensor to repo
 				ROS_INFO("node keypoints size: %lu", nodeKeypoints.size());
-				nodeKpMapPtr->push_back(std::make_pair(tensor_id, nodeKeypoints));
+				nodeKpWritePtr->push_back(nodeKeypoints);
 				//AddTensor(tensorRepo, nodeKeypoints, tensor_id);
 				ROS_INFO_STREAM("Current Tensor Repository Size: " << (tensor_id+1));
 
@@ -344,57 +347,74 @@ void nodeKpSubscriber()
 void actionClassifier()
 { 
     auto tensor_id = 0;
-    std::vector<double> nodeKeypoints;
     
+    // swindow shape
     const auto n_rows = FLAGS_sliding_window_length;
     const auto n_cols = node_seq.size();
     const auto n_slices = 3;
     
-    arma::cube::fixed<n_rows, n_cols, n_slices> sWindow;
-    sWindow.zeros();
+    // declare sliding window
+    std::shared_ptr<arma::cube> sWindow(new arma::cube(n_rows, n_cols, n_slices, arma::fill::zeros));
+    arma::mat& node_mat = sWindow->slice(0);
 
 	ROS_INFO_STREAM("Initialize sliding window with size: [" << n_rows "x" << n_cols << "x" << n_slices << "]");
 	
+	// do the job
     while(ros::ok)
     {
-        // TODO
-        std::shared_ptr<arma::vec> nodeKpPtr(nullptr);
-        // checkout node kp from shared map
-        if (nodeKpMapPtr->size() >= (tensor_id+1))
+        // make sure there is enough node data in the repository
+        if (nodeKpReadPtr->size() >= tensor_id+1)
         {
-            // set local mutex to secure data reading from shared map
-            std::lock_guard<std::mutex> lock(mutex);
-            *nodeKpPtr = nodeKpMapPtr->at(tensor_id); 
-        }
-        else if (!nodeKpMapPtr)
-        {
-            ROS_INFO("Empty node keypoints map, waiting for data ...");
-            break;
-        }
-        else
-        {
-            ROS_INFO("No more new node keypoints, waiting for data ...");
-            break;
-        }
-        
-        // do the work
-        if (!nodeKeypoints.empty())
-        {
-            // TODO
-            // interpolation
+            // for frame 0-8
+            if ((tensor_id+1) < n_rows)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                ROS_INFO_STREAM("Retrieving node keypoints from frame nr." << tensor_id);
+                node_mat.row(tensor_id) = arma::rowvec(nodeKpReadPtr->at(tensor_id));
+                ++tensor_id;
+                break;
+            }
+            // for frame >= 9
+            else
+            {
+                // update frame mat: shed the first row, append new coming frame
+                if ((tensor_id+1) > n_rows)
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    node_mat.shed_row(0);
+                    mat.insert_rows(n_rows-1, arma::rowvec(nodeKpReadPtr->at(tensor_id)));
+                }
+                
+                // do smoothing
+                poseInterpolator(node_mat);
+                
+                // calc 3d tensor
+                calcTensor(sWindow);
+                
+                // normalization
+                normTensor(sWindow);
+                
+                // feed to classifier
+                // log feedback
+                
+                
+                
+                ++tensor_id;
+            }
             
-            // calc 3d tensor
-            // normalization
-            // feed to classifier
-            // log feedback
         }
+        // empty node repo
+        else if (nodeKpReadPtr->empty())
+        {
+            ROS_INFO("Empty node keypoints repository, waiting for data ...");
+            break;
+        }
+        // not updated repo
         else
         {
-            ROS_WARN("Got empty frame! [Frame ID]: %d", tensor_id);
-        }
-        
-        ++tensor_id;
-        nodeKeypoints.clear();    
+            ROS_INFO("No more new added data, waiting for data ...");
+            break;
+        }      
     }
     
     return;

@@ -10,18 +10,34 @@ bool poseInterpolator(arma::mat& mat)
 {
     const auto n_rows = mat.n_rows;
     const auto n_cols = mat.n_cols;
+    std::vector<double> t;
+    std::vector<double> val;
     
-    for (auto i = 0; i < n_cols; ++i)
+    for (auto col = 0; col < n_cols; ++col)
     {
         tk::spline s;
-        std::vector<double> t(n_rows);
-        std::generate(t.begin(), t.end(), [n=0]() mutable {return n++});
-        s.set_points(t, mat.col(i));
+        t.clear();
+        val.clear();
         
-        for (auto elem : t)
+        arma::uvec t_spline = arma::find_finite(mat.col(col));
+        arma::vec val_spline = static_cast<arma::vec>(mat.col(col)).elem(t_spline);
+        
+        for (arma::uvec::iterator it = t_spline.begin(); it != t_spline.end(); ++it)
         {
-            mat.col(i).at(elem) = s(elem);
-        }         
+            t.push_back(*it);
+        }
+        
+        for (arma::vec::iterator it = val_spline.begin(); it != val_spline.end(); ++it)
+        {
+            val.push_back(*it);
+        }
+        
+        s.set_points(t, val);
+        
+        for (auto row = 0; row < n_rows; ++row)
+        {
+            static_cast<arma::vec>(mat.col(col)).at(row) = s(row);
+        }
     }
 
     return true;
@@ -29,7 +45,14 @@ bool poseInterpolator(arma::mat& mat)
 
 
 // calc 3d tensor 
-void calc3DTensor(const arma::vec& mat)
+void calcTensor(std::shared_ptr<arma::cube> sWindow)
+{
+    // TODO
+
+    return;
+} 
+
+void normTensor(std::shared_ptr<arma::cube> sWindow)
 {
     // TODO
 
