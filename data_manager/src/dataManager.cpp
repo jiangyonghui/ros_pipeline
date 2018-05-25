@@ -1,82 +1,67 @@
 #include "data_manager/dataManager.hpp"
+#include "data_manager/spline.h"
 #include <ros/console.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <H5Cpp.h>
 
-// add tensor to repository
-void AddTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int& index)
-{
-	if (repo.dimension(1) != node_keypoints.size())
-	{
-		ROS_ERROR("Tensor repository dimension dismatch node size!");
-	}
-	else
-	{
-		// TODO
-
-		// for (int i = 0; i < repo.dimension(1); ++i)
-		// {
-		// 	repo(index,i,0) = node_keypoints.at(i);
-		// }
-		//
-		// if (index != 0)
-		// {
-		// 	for (int n = 0; n < repo.dimension(1); ++n)
-		// 	{
-		// 		repo(index,n,1) = repo(index,n,0) - repo(index-1,n,0);
-		// 	}
-		//
-		// 	for (int k = 0; k < repo.dimension(1); ++k)
-		// 	{
-		// 		repo(index,k,2) = repo(index,k,1) - repo(index-1,k,1);
-		// 	}
-		// }
-	}
-
-	return;
-}
-
 
 // pose keypoints interpolation
-bool poseInterpolator(Eigen::Tensor<float, 3>& tensorRepo)
+bool poseInterpolator(arma::mat& mat)
 {
-	// TODO
-	// find nan in the tensor, store the position(frame_id, node_id)
-	// do interpolation in tensorRepo(:, node_id, 0) and do estimation at frame_id
+    const auto n_rows = mat.n_rows;
+    const auto n_cols = mat.n_cols;
+    std::vector<double> t;
+    std::vector<double> val;
+    
+    for (auto col = 0; col < n_cols; ++col)
+    {
+        tk::spline s;
+        t.clear();
+        val.clear();
+        
+        arma::uvec t_spline = arma::find_finite(mat.col(col));
+        arma::vec val_spline = static_cast<arma::vec>(mat.col(col)).elem(t_spline);
+        
+        for (arma::uvec::iterator it = t_spline.begin(); it != t_spline.end(); ++it)
+        {
+            t.push_back(*it);
+        }
+        
+        for (arma::vec::iterator it = val_spline.begin(); it != val_spline.end(); ++it)
+        {
+            val.push_back(*it);
+        }
+        
+        s.set_points(t, val);
+        
+        for (auto row = 0; row < n_rows; ++row)
+        {
+            static_cast<arma::vec>(mat.col(col)).at(row) = s(row);
+        }
+    }
 
-
-	return true;
+    return true;
 }
 
 
-// get proposal tensor
-Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int& tensor_id, const int& swindow_len)
+// calc 3d tensor 
+void calcTensor(std::shared_ptr<arma::cube> sWindow)
 {
-	Eigen::array<Eigen::Index, 3> offsets = {(tensor_id+1-swindow_len), 0, 0};
-	Eigen::array<Eigen::Index, 3> extents = {swindow_len, repo.dimension(1), repo.dimension(2)};
-	Eigen::Tensor<float, 3> swindow = repo.slice(offsets, extents);
+    // TODO
 
-	return swindow;
-}
+    return;
+} 
 
-
-// retrieve grouped action tensor
-Eigen::Tensor<float, 3> GetActionTensor(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& action_group)
+void normTensor(std::shared_ptr<arma::cube> sWindow)
 {
-	Eigen::array<Eigen::Index, 3> tensor_shape = {Eigen::Index(action_group.size()), Eigen::Index(tensorRepo.dimension(1)), Eigen::Index(tensorRepo.dimension(2))};
-	Eigen::Tensor<float, 3> action_tensor(tensor_shape);
+    // TODO
 
-	for (int i = 0; i < action_group.size(); ++i)
-	{
-		action_tensor.chip(i, 0) = tensorRepo.chip(action_group.at(i), 0);
-	}
-
-	return action_tensor;
+    return;
 }
 
 
 // convert eigen tensor to std_msgs::Int32MultiArray msg
-void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float32MultiArray& msg)
+void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float64MultiArray& msg)
 {
 
 	if (msg.layout.dim.size() != 3)
@@ -109,7 +94,7 @@ void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float32Mu
 
 
 // resample action group to size of swindow_len
-void ResampleActionGroup(std::vector<int>& action_group, const int& swindow_len, const int& swindow_str)
+void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, const int swindow_str)
 {
 	std::vector<int> resampled_tensor;
 	int resample_str = std::floor((action_group.size()+swindow_len-1)/swindow_len)*swindow_str;
@@ -132,7 +117,7 @@ void ResampleActionGroup(std::vector<int>& action_group, const int& swindow_len,
 
 
 // write tensor to h5 file
-void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
+void WriteTenforRepo(const Eigen::Tensor<double, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
 {
 //	if(!tensorRepo.repo.empty())
 //	{

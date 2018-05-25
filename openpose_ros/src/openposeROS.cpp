@@ -13,8 +13,8 @@ message_repository::BodypartDetection getBodyPartDetectionFromArrayAndIndex(cons
 {
   	message_repository::BodypartDetection bodypart;
 
-  	bodypart.x = array[idx];
-  	bodypart.y = array[idx + 1];
+  	bodypart.x = static_cast<double>(array[idx]);
+  	bodypart.y = static_cast<double>(array[idx + 1]);
   	bodypart.confidence = array[idx + 2];
   	
   	return bodypart;

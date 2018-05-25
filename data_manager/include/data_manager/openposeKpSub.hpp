@@ -18,7 +18,7 @@ private:
  	const std::string pose_topic_;
   	const std::vector<int> node_seq_;
   	const op::PoseModel pose_model_;
-  	std::vector<float> nodeKp_;
+  	std::vector<double> nodeKp_;
     std::map<unsigned int, std::string> bodypart_map_;
 
 public:
@@ -29,7 +29,7 @@ public:
     const std::map<unsigned int, std::string>& getBodyPartMapFromPoseModel();
     void initializeSubscriber();
     void subscriberCallback(const message_repository::PersonDetectionConstPtr& kp_msg);
-    std::vector<float> getNodeKeypoints();
+    std::vector<double> getNodeKeypoints();
     void resetNodeKeypoints(); 
 };
 
