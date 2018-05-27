@@ -85,7 +85,7 @@ const op::PoseModel poseModel = op::flagsToPoseModel(FLAGS_model_pose);
 
 
 // action proposal and classfication
-void nodeKpSubscriber() 
+void nodeKpSubscriber()
 {
 	// logging
 	op::log(" ");
@@ -124,7 +124,7 @@ void nodeKpSubscriber()
 			{
 				// set block mutex to secure data writing to shared map
 				std::lock_guard<std::mutex> lock(mutex);
-				
+
 				++tensor_id;
 				// add tensor to repo
 				ROS_INFO("node keypoints size: %lu", nodeKeypoints.size());
@@ -132,8 +132,8 @@ void nodeKpSubscriber()
 				//AddTensor(tensorRepo, nodeKeypoints, tensor_id);
 				ROS_INFO_STREAM("Current Tensor Repository Size: " << (tensor_id+1));
 
-				
-				 
+
+
 //				if ((tensor_id+1) >= swindow_len)
 //				{
 //					++swindow_id;
@@ -345,20 +345,20 @@ void nodeKpSubscriber()
 
 // pose tensor preparation and do action classification
 void actionClassifier()
-{ 
+{
     auto tensor_id = 0;
-    
+
     // swindow shape
     const auto n_rows = FLAGS_sliding_window_length;
     const auto n_cols = node_seq.size();
     const auto n_slices = 3;
-    
+
     // declare sliding window
     std::shared_ptr<arma::cube> sWindow(new arma::cube(n_rows, n_cols, n_slices, arma::fill::zeros));
     arma::mat& node_mat = sWindow->slice(0);
 
 	ROS_INFO_STREAM("Initialize sliding window with size: [" << n_rows "x" << n_cols << "x" << n_slices << "]");
-	
+
 	// do the job
     while(ros::ok)
     {
@@ -384,24 +384,24 @@ void actionClassifier()
                     node_mat.shed_row(0);
                     mat.insert_rows(n_rows-1, arma::rowvec(nodeKpReadPtr->at(tensor_id)));
                 }
-                
+
                 // do smoothing
                 poseInterpolator(node_mat);
-                
+
                 // calc 3d tensor
                 calcTensor(sWindow);
-                
+
                 // normalization
                 normTensor(sWindow);
                 
                 // feed to classifier
                 // log feedback
-                
-                
-                
+
+
+
                 ++tensor_id;
             }
-            
+
         }
         // empty node repo
         else if (nodeKpReadPtr->empty())
@@ -414,9 +414,9 @@ void actionClassifier()
         {
             ROS_INFO("No more new added data, waiting for data ...");
             break;
-        }      
+        }
     }
-    
+
     return;
 }
 
@@ -427,43 +427,12 @@ int main(int argc, char **argv)
 	google::InitGoogleLogging("data manager");
   	gflags::ParseCommandLineFlags(&argc, &argv, true);
   	ros::init(argc, argv, "data_manager");
-  	
+
   	std::thread t_nodeKpSub(nodeKpSubscriber());
   	std::thread t_actionClassifier(actionClassifier());
-  	
+
   	t_nodeKpSub.join();
   	t_actionClassifier.join();
 
   	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

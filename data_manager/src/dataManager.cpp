@@ -12,28 +12,28 @@ bool poseInterpolator(arma::mat& mat)
     const auto n_cols = mat.n_cols;
     std::vector<double> t;
     std::vector<double> val;
-    
+
     for (auto col = 0; col < n_cols; ++col)
     {
         tk::spline s;
         t.clear();
         val.clear();
-        
+
         arma::uvec t_spline = arma::find_finite(mat.col(col));
         arma::vec val_spline = static_cast<arma::vec>(mat.col(col)).elem(t_spline);
-        
+
         for (arma::uvec::iterator it = t_spline.begin(); it != t_spline.end(); ++it)
         {
             t.push_back(*it);
         }
-        
+
         for (arma::vec::iterator it = val_spline.begin(); it != val_spline.end(); ++it)
         {
             val.push_back(*it);
         }
-        
+
         s.set_points(t, val);
-        
+
         for (auto row = 0; row < n_rows; ++row)
         {
             static_cast<arma::vec>(mat.col(col)).at(row) = s(row);
@@ -44,17 +44,42 @@ bool poseInterpolator(arma::mat& mat)
 }
 
 
-// calc 3d tensor 
+// calc 3d tensor
 void calcTensor(std::shared_ptr<arma::cube> sWindow)
 {
-    // TODO
+    const auto n_rows = sWindow->n_rows;
+    const auto n_slices = sWindow->n_slices;
+
+    for (auto slice_id = 1; slice_id < n_slices; ++slice_id)
+    {
+        for (auto row_id = 1; row_id < n_rows; ++row_id)
+        {
+            sWindow->slice(slice_id).row(row_id) =
+            sWindow->slice(slice_id-1).row(row_id) -
+            sWindow->slice(slice_id-1).row(row_id-1);
+        }
+    }
 
     return;
-} 
+}
 
-void normTensor(std::shared_ptr<arma::cube> sWindow)
+void normTensor(std::shared_ptr<arma::cube> sWindow, const op::Point<int>& imageSize)
 {
-    // TODO
+    // step 1: normalized with respect to image coordinate system
+    const auto width = imageSize.x;
+    const auto height = imageSize.y;
+    const auto n_cols = sWindow->n_cols;
+    auto normX = [](arma::mat& x_col) {x_col = 2*x_col/width - 1;};
+    auto normY = [](arma::mat& y_col) {y_col = 2*y_col/height - 1;};
+    arma::uvec x_col_index = arma::regspace<arma::uvec>(0,2,n_cols-1);
+    arma::uvec y_col_index = arma::regspace<arma::uvec>(1,2,n_cols-1);
+
+    sWindow->each_slice([](arma::mat& mat) {
+        normX(mat.cols(x_col_index));
+        normY(mat.cols(y_col_index));});
+
+    // step 2: 
+
 
     return;
 }
