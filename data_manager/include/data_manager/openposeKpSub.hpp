@@ -27,7 +27,7 @@ public:
          
     ~OpenposeKpSub();
     const std::map<unsigned int, std::string>& getBodyPartMapFromPoseModel();
-    void initializeSubscriber();
+    void launchSubscriber();
     void subscriberCallback(const message_repository::PersonDetectionConstPtr& kp_msg);
     std::vector<double> getNodeKeypoints();
     void resetNodeKeypoints(); 

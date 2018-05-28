@@ -79,10 +79,6 @@ target_link_libraries(openpose   	${catkin_LIBRARIES}
 				   					${GFLAGS_LIBRARY} 
 				   					${GLOG_LIBRARY}
 				   					${OpenCV_LIBRARIES})
-<<<<<<< HEAD
-
-=======
->>>>>>> devel
 
 add_executable(image_seq_reader src/imageSeqReader.cpp)
 target_link_libraries(image_seq_reader	${catkin_LIBRARIES}   

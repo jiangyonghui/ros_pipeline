@@ -3,11 +3,16 @@
 #include <ros/console.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <H5Cpp.h>
+#include <algorithm>
+#include <vector>
+#include <cmath>
 
 
 // pose keypoints interpolation
-bool poseInterpolator(arma::mat& mat)
+void poseInterpolator(arma::mat& mat)
 {
+    ROS_INFO("Starting Pose Interpolation ...");
+    
     const auto n_rows = mat.n_rows;
     const auto n_cols = mat.n_cols;
     std::vector<double> t;
@@ -39,14 +44,72 @@ bool poseInterpolator(arma::mat& mat)
             static_cast<arma::vec>(mat.col(col)).at(row) = s(row);
         }
     }
+    
+    ROS_INFO("Pose Interpolation Done!");
+    
+    return;
+}
 
-    return true;
+
+// normalization
+void normTensor(arma::mat& node_mat, const op::Point<int>& imageSize, const int id_neck, const int id_rhip)
+{
+    ROS_INFO("Starting Pose Normalization ...");
+    
+    // step 1: normalized with respect to image coordinate system
+    const auto width = imageSize.x;
+    const auto height = imageSize.y;
+    const auto n_cols = node_mat.n_cols;
+    const auto n_rows = node_mat.n_rows;
+        
+    for (auto col = 0; col < n_cols; ++col)
+    {
+        if (!(col%2))
+        {
+            node_mat.col(col) = 2*node_mat.col(col)/width-1;
+        }
+        else
+        {
+            node_mat.col(col) = 2*node_mat.col(col)/height-1;
+        }
+    }
+    
+    // step 2: normalized with respect to torso length  
+    for (auto row = 0; row < n_rows; ++row)
+    {
+        auto& x_neck = node_mat.at(row, 2*id_neck);
+        auto& y_neck = node_mat.at(row, 2*id_neck+1);
+        auto& x_rhip = node_mat.at(row, 2*id_rhip);
+        auto& y_rhip = node_mat.at(row, 2*id_rhip+1); 
+        const auto torso_len = std::sqrt(std::pow(x_neck-x_rhip,2) + std::pow(y_neck-y_rhip,2));
+        node_mat.row(row) /= torso_len;
+        const auto torso_x = (x_neck+x_rhip)/2;
+        const auto torso_y = (y_neck+y_rhip)/2;
+        
+        for (auto col = 0; col < n_cols; ++col)
+        {
+            if (!(col%2))
+            {
+                node_mat.at(row, col) -= torso_x;
+            }
+            else
+            {
+                node_mat.at(row, col) -= torso_y;
+            }
+        }
+    }
+    
+    ROS_INFO("Pose Normalization Done!");
+    
+    return;
 }
 
 
 // calc 3d tensor
 void calcTensor(std::shared_ptr<arma::cube> sWindow)
 {
+    ROS_INFO("Starting Tensor Calculation ...");
+    
     const auto n_rows = sWindow->n_rows;
     const auto n_slices = sWindow->n_slices;
 
@@ -59,91 +122,80 @@ void calcTensor(std::shared_ptr<arma::cube> sWindow)
             sWindow->slice(slice_id-1).row(row_id-1);
         }
     }
-
-    return;
-}
-
-void normTensor(std::shared_ptr<arma::cube> sWindow, const op::Point<int>& imageSize)
-{
-    // step 1: normalized with respect to image coordinate system
-    const auto width = imageSize.x;
-    const auto height = imageSize.y;
-    const auto n_cols = sWindow->n_cols;
-    auto normX = [](arma::mat& x_col) {x_col = 2*x_col/width - 1;};
-    auto normY = [](arma::mat& y_col) {y_col = 2*y_col/height - 1;};
-    arma::uvec x_col_index = arma::regspace<arma::uvec>(0,2,n_cols-1);
-    arma::uvec y_col_index = arma::regspace<arma::uvec>(1,2,n_cols-1);
-
-    sWindow->each_slice([](arma::mat& mat) {
-        normX(mat.cols(x_col_index));
-        normY(mat.cols(y_col_index));});
-
-    // step 2: 
-
-
+    
+    ROS_INFO("Tensor Calculation Done!");
+    
     return;
 }
 
 
-// convert eigen tensor to std_msgs::Int32MultiArray msg
-void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float64MultiArray& msg)
+// convert tensor to msg
+void EigenTensorToMsg(std::shared_ptr<arma::cube> tensorPtr, std_msgs::Float64MultiArray& msg)
 {
-
+	ROS_INFO("Converting Tensor to ROS Message ...");
+	
 	if (msg.layout.dim.size() != 3)
 	{
 		msg.layout.dim.resize(3);
 	}
-
+    
+    const auto n_frames = tensorPtr->n_rows;
+    const auto n_nodes = tensorPtr->n_cols;
+    const auto n_channels = tensorPtr->n_slices;
+    const auto tensor_size = tensorPtr->n_elem;
+    
 	msg.layout.dim[0].label = "frame";
-	msg.layout.dim[0].size = tensor.dimension(0);
+	msg.layout.dim[0].size = n_frames;
 
 	msg.layout.dim[1].label = "node";
-	msg.layout.dim[1].size = tensor.dimension(1);
+	msg.layout.dim[1].size = n_nodes;
 
 	msg.layout.dim[2].label = "channel";
-	msg.layout.dim[2].size = tensor.dimension(2);
+	msg.layout.dim[2].size = n_channels;
 
 	msg.layout.data_offset = 0;
 
 	// transfer data to msg
-	msg.data.resize(tensor.size());
+	msg.data.resize(tensor_size);
 	msg.data.clear();
 
-	for(int i = 0; i < tensor.dimension(0); ++i)
-		for(int j = 0; j < tensor.dimension(1); ++j)
-			for(int k = 0; k < tensor.dimension(2); ++k)
-				msg.data.push_back(tensor(i,j,k));
-
+	for(auto frame = 0; frame < n_frames; ++frame)
+		for(auto node = 0; node < n_nodes; ++node)
+			for(auto channel = 0; channel < n_channels; ++channel)
+				msg.data.push_back(tensorPtr->at(frame,node,channel));
+    
+    ROS_INFO("ROS Message Conversion Done!");
+    
 	return;
 }
 
 
 // resample action group to size of swindow_len
-void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, const int swindow_str)
-{
-	std::vector<int> resampled_tensor;
-	int resample_str = std::floor((action_group.size()+swindow_len-1)/swindow_len)*swindow_str;
-	ROS_INFO("Resampling Stride: %d", resample_str);
-	ROS_INFO("Resampling Tensor ID: ");
+//void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, const int swindow_str)
+//{
+//	std::vector<int> resampled_tensor;
+//	int resample_str = std::floor((action_group.size()+swindow_len-1)/swindow_len)*swindow_str;
+//	ROS_INFO("Resampling Stride: %d", resample_str);
+//	ROS_INFO("Resampling Tensor ID: ");
 
-	for(auto tick = 0; tick < swindow_len; ++tick)
-	{
-		auto tensor_id = action_group.front() + tick*resample_str;
-		std::cout << tensor_id << " ";
-		resampled_tensor.push_back(tensor_id);
-	}
+//	for(auto tick = 0; tick < swindow_len; ++tick)
+//	{
+//		auto tensor_id = action_group.front() + tick*resample_str;
+//		std::cout << tensor_id << " ";
+//		resampled_tensor.push_back(tensor_id);
+//	}
 
-	std::cout << std::endl;
-	action_group.clear();
-	action_group = resampled_tensor;
+//	std::cout << std::endl;
+//	action_group.clear();
+//	action_group = resampled_tensor;
 
-	return;
-}
+//	return;
+//}
 
 
 // write tensor to h5 file
-void WriteTenforRepo(const Eigen::Tensor<double, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
-{
+//void WriteTenforRepo(const Eigen::Tensor<double, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
+//{
 //	if(!tensorRepo.repo.empty())
 //	{
 //		/*t_4d(dim_0, dim_1, dim_2, dim_3)
@@ -252,5 +304,5 @@ void WriteTenforRepo(const Eigen::Tensor<double, 3>& tensorRepo, std::vector<int
 //		return -1;
 //	}
 
-	return;
-}
+//	return;
+//}

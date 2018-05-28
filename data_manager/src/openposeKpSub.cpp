@@ -7,9 +7,9 @@ OpenposeKpSub::OpenposeKpSub(ros::NodeHandle& nh, const std::string& pose_topic,
                              const std::vector<int>& node_seq, const op::PoseModel& pose_model):
                              nh_(nh), pose_topic_(pose_topic), node_seq_(node_seq), pose_model_(pose_model)
 {
-    ROS_INFO("Constructing Openpose Subscriber ...");
+    ROS_INFO("Initializing Openpose Subscriber ...");
     bodypart_map_ = getBodyPartMapFromPoseModel();
-    initializeSubscriber();
+    ROS_INFO("Openpose Subscriber Initialization Done!");
 }
 
 
@@ -40,9 +40,9 @@ const std::map<unsigned int, std::string>& OpenposeKpSub::getBodyPartMapFromPose
 }
 
 
-void OpenposeKpSub::initializeSubscriber()
+void OpenposeKpSub::launchSubscriber()
 {
-    ROS_INFO("Initializing Openpose Subscriber ...");
+    ROS_INFO("Launching Openpose Subscriber ...");
     kp_sub_ = nh_.subscribe(pose_topic_, 1, &OpenposeKpSub::subscriberCallback, this);
     return;
 }
