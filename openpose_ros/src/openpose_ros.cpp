@@ -82,14 +82,13 @@ int openPoseDetection()
 	
 	ROS_INFO("Initialize OpenPose ...");
 	// ------------------------- INITIALIZATION -------------------------
-    
     // Step 1 - Set logging level
     // - 0 will output all the logging messages
     // - 255 will output nothing
     op::check(0 <= FLAGS_logging_level && FLAGS_logging_level <= 255, "Wrong logging_level value.", __LINE__, __FUNCTION__, __FILE__);
     op::ConfigureLog::setPriorityThreshold((op::Priority)FLAGS_logging_level);
     
-
+    
     // Step 2 - Read Google flags (user defined configuration)
     const auto outputSize = op::flagsToPoint(FLAGS_output_resolution, "1280x720");
 	const auto netInputSize = op::flagsToPoint(FLAGS_net_resolution, "656x368");
@@ -140,17 +139,11 @@ int openPoseDetection()
     ros::Publisher image_skeleton_pub = nh.advertise<sensor_msgs::Image>("/openpose_ros/detected_poses_image", 0);
   	ros::Publisher keypoints_pub = nh.advertise<message_repository::PersonDetection>("/openpose_ros/detected_poses_keypoints", 0);
 
-    // Initialize cv_ptr
-//    sensor_msgs::Image ros_image;
-//    ros_image.encoding = sensor_msgs::image_encodings::BGR8;
-//    cv_bridge::CvImagePtr cv_ptr;
-//    cv_ptr = cv_bridge::toCvCopy(ros_image, ros_image.encoding);
 
     // Initialize the image subscriber
     RosImgSub rosImgSubscriber(nh, FLAGS_camera_topic);
 
     int frame_id = 0;
-    const std::chrono::high_resolution_clock::time_point timerBegin = std::chrono::high_resolution_clock::now();
 	
 	ROS_INFO_STREAM("initial net_input_size: " << FLAGS_net_resolution);
   	ROS_INFO_STREAM("initial output_size: " << FLAGS_output_resolution);
@@ -159,12 +152,15 @@ int openPoseDetection()
 	ROS_INFO("Initialization Done!");
 	
     ros::spinOnce();
+    
+    const std::chrono::high_resolution_clock::time_point timerBegin = std::chrono::high_resolution_clock::now();
 
     while (ros::ok())
     {
         // ------------------------- POSE ESTIMATION AND RENDERING -------------------------
         // Step 1 - Get cv_image ptr 
-        cv_bridge::CvImagePtr cvImagePtr = rosImgSubscriber.getCvImagePtr();
+        cv_bridge::CvImagePtr cvImagePtr = rosImgSubscriber.getCvImagePtr();                     
+        
         if(cvImagePtr != nullptr)
         {	
         	op::log(" ");
@@ -185,12 +181,14 @@ int openPoseDetection()
             
             std::tie(scaleInputToNetInputs, netInputSizes, scaleInputToOutput, outputResolution)
                 = scaleAndSizeExtractor->extract(imageSize);
-
+            
+            // t: ~0.03+
             auto netInputArray = cvMatToOpInput.createArray(inputImage, scaleInputToNetInputs, netInputSizes);
             auto outputArray = cvMatToOpOutput.createArray(inputImage, scaleInputToOutput, outputResolution);
             
-
+    
             // Step 3 - Estimate poseKeypoints
+            // t: 1.5 ~ 2.+ 
             ROS_INFO("Performing Forward Pass ....");
 
             // Estimate poseKeypoints
@@ -199,20 +197,24 @@ int openPoseDetection()
 
             const op::Array<float> poseKeypoints = poseExtractorCaffe->getPoseKeypoints();
             ROS_INFO("Keypoints Got");
+            
 
             // Step 4 - Render poseKeypoints
+            // t: ~0.02+
             poseGpuRenderer->renderPose(outputArray, poseKeypoints, scaleInputToOutput);
             ROS_INFO("Pose Rendering Done"); 
             op::log(" ");
-
+   
 
             // Step 5 - OpenPose output format to cv::Mat and publish detected pose image
+            // t: ~0.02+
             auto outputImage = opOutputToCvMat.formatToCvMat(outputArray);
             sensor_msgs::Image output_ros_image;
   			cvImagePtr->image = outputImage;
  	  		output_ros_image = *(cvImagePtr->toImageMsg());
   			image_skeleton_pub.publish(output_ros_image);
-
+  			
+  		
             // ------------------------- SHOWING RESULT AND CLOSING -------------------------
             //cv::imshow("OpenPose ROS Result", outputImage);
             //cv::waitKey(10);
@@ -220,6 +222,7 @@ int openPoseDetection()
             
   			// -------------------------- RETRIEVE POSE INFO -----------------------------
   			// Validate poseKeypoints
+  			// t: ~0.002+
   			retrievePoseInfo(poseKeypoints, keypoints_pub, bodypartMap);
   			op::log("------------------------------------------------------------------------------");
   			

@@ -1,15 +1,9 @@
 /* This is the node for data management, e.g. data convertion, data flow,  management, data preprocess, etc. */
 /*
- * subscribe:
+ * subscribe to:
  * /openpose_ros/detected_poses_keypoints
  *
- * servic_1: actionness_proposal
- * server: pose_net
- * client: action_proposal_client
- * request: sliding window
- * response: actioness label
- *
- * service_2: action_classifier
+ * service: action_classifier
  * server: pose_net
  * client: action_classifier_client
  * request: action tensor
@@ -22,24 +16,23 @@
 #include <ros/node_handle.h>
 #include <ros/service_server.h>
 #include <ros/init.h>
-#include <ros/console.h> // ROS::DEBUG
+#include <ros/console.h>
 #include <std_srvs/Empty.h>
 
-// ros custom messages
+// custom ros msgs
 #include <message_repository/PersonDetection.h>
 #include <message_repository/ActionnessProposal.h>
 #include <message_repository/ActionClassifier.h>
 
-// data_manager functions
+// custom funcs 
 #include <data_manager/header.hpp>
 
-#include <gflags/gflags.h> // DEFINE_bool, DEFINE_int32, DEFINE_int64, DEFINE_uint64, DEFINE_double, DEFINE_string
+#include <gflags/gflags.h> // DEFINE_*
 #include <glog/logging.h>  // google::InitGoogleLogging
 
-// 
-#include <thread> // std::thread
-#include <mutex> // std::mutex
-#include <chrono> // std::chrono
+#include <thread> 
+#include <mutex> 
+#include <chrono>
 
 #include <Armadillo/armadillo> // arma::cube, arma::mat, arma::vec
 
@@ -180,7 +173,6 @@ void actionClassifier()
             // for frame 0-8
             if ((tensor_id+1) < n_frames)
             {
-                std::lock_guard<std::mutex> lock(mutex);
                 nodePtr->insert_rows(tensor_id, nodeKpReadPtr->row(tensor_id));
             }
             // for frame >= 9
@@ -195,9 +187,8 @@ void actionClassifier()
                 }
                 else
                 {
-                    ROS_INFO("Appending the last frame in Sliding Window to get ready for classification");
-                    
                     nodePtr->insert_rows(tensor_id, nodeKpReadPtr->row(tensor_id));
+                    ROS_INFO("Got first Sliding Window, ready for classification ...");
                 }
                 
                 // do smoothing
