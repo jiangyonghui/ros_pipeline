@@ -57,9 +57,6 @@ void calcTensor(std::shared_ptr<arma::cube> sWindow);
 // convert tensor to msg
 void EigenTensorToMsg(std::shared_ptr<arma::cube> tensorPtr, std_msgs::Float64MultiArray& msg);
 
-// resample action group to size of swindow_len
-//void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, const int swindow_str);
-
 // write tensor to h5 file
 //void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name);
 

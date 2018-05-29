@@ -170,29 +170,6 @@ void EigenTensorToMsg(std::shared_ptr<arma::cube> tensorPtr, std_msgs::Float64Mu
 }
 
 
-// resample action group to size of swindow_len
-//void ResampleActionGroup(std::vector<int>& action_group, const int swindow_len, const int swindow_str)
-//{
-//	std::vector<int> resampled_tensor;
-//	int resample_str = std::floor((action_group.size()+swindow_len-1)/swindow_len)*swindow_str;
-//	ROS_INFO("Resampling Stride: %d", resample_str);
-//	ROS_INFO("Resampling Tensor ID: ");
-
-//	for(auto tick = 0; tick < swindow_len; ++tick)
-//	{
-//		auto tensor_id = action_group.front() + tick*resample_str;
-//		std::cout << tensor_id << " ";
-//		resampled_tensor.push_back(tensor_id);
-//	}
-
-//	std::cout << std::endl;
-//	action_group.clear();
-//	action_group = resampled_tensor;
-
-//	return;
-//}
-
-
 // write tensor to h5 file
 //void WriteTenforRepo(const Eigen::Tensor<double, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name)
 //{

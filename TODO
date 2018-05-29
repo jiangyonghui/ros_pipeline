@@ -2,7 +2,6 @@
 - nodelet + nodes
 - ros stack?
 - ros-based distributed system architecture
-- normalöization (incl. shifting)
 - visualize keypoints before and after smoothing (offline)
 
 
