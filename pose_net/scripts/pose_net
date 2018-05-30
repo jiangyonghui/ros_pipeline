@@ -121,7 +121,7 @@ def pose_net_server():
 	classifier = PoseNetClassifier(num_classes=num_classes_classifier, input_shape=input_shape_classifier)
 	classifier.initModel(preTrained_model=preTrained_model_classifier)
 	
-	service_classifier = rospy.Service('action_classifier', ActionClassifier, classifier.actionLabelCallback)
+	service_classifier = rospy.Service('/pose_net/action_classifier', ActionClassifier, classifier.actionLabelCallback)
 
 	rospy.loginfo("Initialization Successful!")
 	rospy.loginfo("Ready for action classification ...")

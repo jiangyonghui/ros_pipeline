@@ -192,6 +192,7 @@ int openPoseDetection()
             ROS_INFO("Performing Forward Pass ....");
 
             // Estimate poseKeypoints
+            // pose processing ->CPU vs GPU
             poseExtractorCaffe->forwardPass(netInputArray, imageSize, scaleInputToNetInputs);
             ROS_INFO("Forward Pass Done");
 

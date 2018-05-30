@@ -48,7 +48,7 @@ DEFINE_double(actioness_thres_value, 	2.0,										"Threshold value for action 
 DEFINE_double(action_grouping_rate, 	0.5, 										"Threshold rate for action grouping");
 DEFINE_int32(tensor_repo_len,        	100, 										"Frames for action classfication");
 DEFINE_int32(sliding_window_length, 	10, 										"Frames of sliding window");
-DEFINE_int32(pose_tensor_stride, 		1, 											"Stride of pose tensor");
+DEFINE_int32(tensor_stride, 		    1, 											"Stride of pose tensor");
 DEFINE_int32(sliding_window_stride, 	1, 											"Stride of sliding window");
 DEFINE_int32(tensor_offset, 			0, 											"Starting frame for tensor calculation");
 DEFINE_int32(sliding_window_offset, 	0, 											"Starting frame for sliding window calculation");
@@ -57,15 +57,8 @@ DEFINE_string(h5_file_folder, 			"/home/nvidia/data/h5/", 					"Location of outp
 
 
 // setting default parameter values
-const auto swindow_str = FLAGS_sliding_window_stride;
-const auto tensor_str = FLAGS_pose_tensor_stride;
-const auto repo_len = FLAGS_tensor_repo_len;
-const auto tensor_offset = FLAGS_tensor_offset;
-const auto swindow_offset = FLAGS_sliding_window_offset;
-
-const std::vector<int> node_seq{8, 9, 8, 16, 12, 17, 12, 16, 8, 14, 15, 10, 15,
+const std::vector<int> nodeSeq{8, 9, 8, 16, 12, 17, 12, 16, 8, 14, 15, 10, 15,
 							        14, 8, 4, 5, 0, 5, 4, 8, 6, 2, 7, 2, 6, 8};
-const op::PoseModel poseModel = op::flagsToPoseModel(FLAGS_model_pose);
 
 // node keypoints map
 std::shared_ptr<arma::mat> nodeKpWritePtr(new arma::mat);
@@ -81,9 +74,21 @@ void nodeKpSubscriber()
 	op::log("--------------------------------------------");
 	op::log(" ");
 
-	// Initialize OpenposeKpSub
+	// Initialize params and OpenposeKpSub
 	ros::NodeHandle nh;
-	OpenposeKpSub openposeKpSubscriber(nh, static_cast<const std::string>(FLAGS_pose_topic), node_seq, poseModel);
+	ros::NodeHandle nh_p("~");
+	
+	std::string pose_topic;
+	std::string pose_model;
+	int tensor_offset;
+	int tensor_str;
+	
+	nh_p.param<std::string>("pose_topic", pose_topic, FLAGS_pose_topic);
+	nh_p.param<std::string>("pose_model", pose_model, FLAGS_model_pose);
+	nh_p.param<int>("tensor_offset", tensor_offset, FLAGS_tensor_offset);
+	nh_p.param<int>("tensor_str", tensor_str, FLAGS_tensor_stride);
+	
+	OpenposeKpSub openposeKpSubscriber(nh, pose_topic, node_seq, op::flagsToPoseModel(pose_model));
 	openposeKpSubscriber.launchSubscriber();
 	
 	auto frame_id = -1;
@@ -135,24 +140,29 @@ void actionClassifier()
 
     // declare action classification service
     ros::NodeHandle nh;
+    ros::NodeHandle nh_p("~");
+    
+    int tensor_repo_len = FLAGS_tensor_repo_len;
+    nh_p.getParam("tensor_repo_len", tensor_repo_len);
+    
 	ros::ServiceClient action_classifier_client =
-		nh.serviceClient<message_repository::ActionClassifier>("action_classifier");
+		nh.serviceClient<message_repository::ActionClassifier>("/pose_net/action_classifier");
 	message_repository::ActionClassifier action_classifier_srv;
 
     auto tensor_id = 0;
 
     // swindow shape
     const auto n_frames = FLAGS_sliding_window_length;
-    const auto n_nodes = 2*node_seq.size();
+    const auto n_nodes = 2*nodeSeq.size();
     const auto n_channels = 3;
     
     const op::Point<int> imageSize(1280,720);
     
     // get the position of neck and rhip in the node sequence for normalization
-    std::vector<int>::const_iterator it_neck = std::find(node_seq.begin(), node_seq.end(), 8);
-    std::vector<int>::const_iterator it_rhip = std::find(node_seq.begin(), node_seq.end(), 14);
-    const auto id_neck = it_neck - node_seq.begin();
-    const auto id_rhip = it_rhip - node_seq.end();
+    std::vector<int>::const_iterator it_neck = std::find(nodeSeq.begin(), nodeSeq.end(), 8);
+    std::vector<int>::const_iterator it_rhip = std::find(nodeSeq.begin(), nodeSeq.end(), 14);
+    const auto id_neck = it_neck - nodeSeq.begin();
+    const auto id_rhip = it_rhip - nodeSeq.end();
 
     // declare sliding window
     std::shared_ptr<arma::cube> sWindow(new arma::cube(n_frames, n_nodes, n_channels, arma::fill::zeros));
@@ -189,6 +199,16 @@ void actionClassifier()
                 {
                     nodePtr->insert_rows(tensor_id, nodeKpReadPtr->row(tensor_id));
                     ROS_INFO("Got first Sliding Window, ready for classification ...");
+                }
+                
+                // when node repo reaches the maximal size
+                if (nodeKpReadPtr->n_rows == tensor_repo_len)
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    ROS_INFO_STREAM("Node Repository reaches size: " << tensor_repo_len);
+                    ROS_INFO_STREAM("Releasing data between Frame Nr.0 and Frame Nr." << tensor_id-n_frames);  
+                    nodeKpReadPtr->shed_rows(0, tensor_id-n_frames); 
+                    tensor_id = n_frames - 1;    
                 }
                 
                 // do smoothing
@@ -246,9 +266,9 @@ int main(int argc, char **argv)
   	google::InitGoogleLogging("data_manager");
   	gflags::ParseCommandLineFlags(&argc, &argv, true);
   	ros::init(argc, argv, "data_manager");
-
+    
   	std::thread t_nodeKpSub(nodeKpSubscriber);
-  	std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  	std::this_thread::sleep_for(std::chrono::milliseconds(100));
   	std::thread t_actionClassifier(actionClassifier);
  	
   	t_nodeKpSub.join();
