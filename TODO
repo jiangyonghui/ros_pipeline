@@ -4,3 +4,4 @@
 - ros-based distributed system architecture
 - visualize keypoints before and after smoothing (offline)
 - data_manager class
+- openpose image_reader class

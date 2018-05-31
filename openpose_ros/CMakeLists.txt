@@ -39,7 +39,7 @@ catkin_package(
   roslib
   image_transport)			 
 
-find_package(OpenCV COMPONENTS highgui)
+find_package(OpenCV COMPONENTS highgui imgcodecs)
 
 include_directories(
   include

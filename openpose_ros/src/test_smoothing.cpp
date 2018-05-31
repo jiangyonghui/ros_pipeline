@@ -1,16 +1,3 @@
-/*------------------------------------------------- OpenPose ROS Node ---------------------------------------------------/
-** [Publisher]: 
-** input_image_pub      topic: /openpose_ros/input_image					msg_type: sensor_msgs::Image                    
-** image_skeleton_pub   topic: /openpose_ros/detected_poses_image			msg_type: sensor_msgs::Image
-** keypoints_pub        topic: /openpose_ros/detected_poses_keypoints		msg_type: message_repository::PersonDetection
-**
-** [Subscriber]:
-** rosImgSubscriber     topic: /cv_camera/image_raw							msg_type: sensor_msgs::Image
-**																					  sensor_msgs::ImageConstPtr
-*/																				
-
-
-
 // OpenPose dependencies
 #include <openpose/headers.hpp>
 
@@ -33,7 +20,11 @@
 #include <glog/logging.h> // google::InitGoogleLogging
 
 // local defined classes and funcs
-#include "openpose_ros/header.hpp"
+#include <openpose_ros/header.hpp>
+
+#include <algorithm> // std::generate
+
+#include "openpose_ros/spline.h"
 
 // OpenPose
 std::string model_folder_location = "/home/nvidia/MasterThesis/code/ros_pipeline/3rdPartyLib/openpose/models/";
@@ -86,33 +77,11 @@ int openPoseDetection()
 	op::log("OpenPose ROS Client Node", op::Priority::High);
 	
 	ROS_INFO("Initialize OpenPose ...");
-	// ------------------------- INITIALIZATION -------------------------
-    // Step 1 - Set logging level
-    // - 0 will output all the logging messages
-    // - 255 will output nothing
-    op::check(0 <= FLAGS_logging_level && FLAGS_logging_level <= 255, "Wrong logging_level value.", __LINE__, __FUNCTION__, __FILE__);
-    op::ConfigureLog::setPriorityThreshold((op::Priority)FLAGS_logging_level);
     
-    
-    // Step 2 - Read Google flags (user defined configuration)
     const auto outputSize = op::flagsToPoint(FLAGS_output_resolution, "1280x720");
 	const auto netInputSize = op::flagsToPoint(FLAGS_net_resolution, "656x368");
     const auto poseModel = op::flagsToPoseModel(FLAGS_model_pose);
-	
-    // Check no contradictory flags enabled
-    if (FLAGS_alpha_pose < 0. || FLAGS_alpha_pose > 1.)
-    {
-    	op::error("Alpha value for blending must be in the range [0,1].", __LINE__, __FUNCTION__, __FILE__);
-    }
 
-    if (FLAGS_scale_gap <= 0. && FLAGS_num_scales > 1)
-    {
-        op::error("Incompatible flag configuration: scale_gap must be greater than 0 or num_scales = 1.", 
-        	__LINE__, __FUNCTION__, __FILE__);
-    }
-
-    
-    // Step 3 - Initialize all required classes
     op::CvMatToOpInput cvMatToOpInput;
     op::CvMatToOpOutput cvMatToOpOutput;
     op::OpOutputToCvMat opOutputToCvMat;
@@ -130,31 +99,18 @@ int openPoseDetection()
     std::shared_ptr<op::PoseGpuRenderer> poseGpuRenderer(new op::PoseGpuRenderer(
     	poseModel, poseExtractorCaffe, (float)FLAGS_render_threshold, !FLAGS_disable_blending, 
     	(float)FLAGS_alpha_pose, (float)FLAGS_alpha_heatmap)); 
-    std::shared_ptr<op::FrameDisplayer> frameDisplayer(new op::FrameDisplayer("OpenPose ROS Node", outputSize)); 
+    
+    std::shared_ptr<std::vector<op::Array<float>>> poseKpPtr(new std::vector<op::Array<float>>);
 
-
-    // Step 4 - Initialize resources on desired thread (in this case single thread, i.e. we init resources here)
+    // Initialize resources on desired thread (in this case single thread, i.e. we init resources here)
     poseExtractorCaffe->initializationOnThread();
     poseGpuRenderer->initializationOnThread();
     
-    
-	// Step 5 - Declare Publisher
     ros::NodeHandle nh;
-    ros::Publisher input_image_pub = nh.advertise<sensor_msgs::Image>("/openpose_ros/input_image", 0); 
-    ros::Publisher image_skeleton_pub = nh.advertise<sensor_msgs::Image>("/openpose_ros/detected_poses_image", 0);
-  	ros::Publisher keypoints_pub = nh.advertise<message_repository::PersonDetection>("/openpose_ros/detected_poses_keypoints", 0);
-
+    RosImgSub rosImgSubscriber(nh, FLAGS_camera_topic);
 
     // Initialize the image subscriber
     int frame_id = 0;
-	
-	ROS_INFO_STREAM("initial net_input_size: " << FLAGS_net_resolution);
-  	ROS_INFO_STREAM("initial output_size: " << FLAGS_output_resolution);
-  	ROS_INFO_STREAM("initial pose_model: " << FLAGS_model_pose);
-	
-	ROS_INFO("Initialization Done!");
-	
-	RosImgSub rosImgSubscriber(nh, FLAGS_camera_topic);
 	
     ros::spinOnce();
     
@@ -170,12 +126,7 @@ int openPoseDetection()
         {	
         	op::log(" ");
         	ROS_INFO_STREAM("Frame ID: " << frame_id);
-            cv::Mat inputImage = cvImagePtr->image;
-            
-            // publish input image
-            sensor_msgs::Image input_ros_image = *(cvImagePtr->toImageMsg());
-            input_image_pub.publish(input_ros_image);
-            
+            cv::Mat inputImage = cvImagePtr->image;          
             
             // Step 2 - Format input image to OpenPose input and output formats
             const op::Point<int> imageSize{inputImage.cols, inputImage.rows};
@@ -204,50 +155,42 @@ int openPoseDetection()
             const op::Array<float> poseKeypoints = poseExtractorCaffe->getPoseKeypoints();
             ROS_INFO("Keypoints Got");
             
-            // [num_people, 18, 3]
-            ROS_INFO_STREAM("poseKeypoints size: [" << poseKeypoints.getSize(0) << ", "
-                                                    << poseKeypoints.getSize(1) << ", "
-                                                    << poseKeypoints.getSize(2) << "]");
+            poseKpPtr->push_back(poseKeypoints);
             
-
+            rosImgSubscriber.resetCvImagePtr();
+            ++frame_id;
+        }
+         
+        ros::spinOnce();
+    }
+    
+    // do smoothing       
+    const auto num_people = poseKpPtr->at(0).getSize(0);
+    const auto num_nodes = poseKpPtr->at(0).getSize(1);
+    const auto num_channel = poseKpPtr->at(0).getSize(2);
+    const auto num_frame = poseKpPtr->size();
+    
+    tk::spline s;
+    std::vector<double> t(num_nodes), val(num_nodes); 
+    t = std::generate(t.begin(), t.end(), [n=0.]() mutable {return ++n;}); 
+    
+    for (auto frame = 0; frame < num_frame; ++frame)
+    {
+        // TODO
+    
+    }
+           
+            
+           
             // Step 4 - Render poseKeypoints
             // t: ~0.02+
             poseGpuRenderer->renderPose(outputArray, poseKeypoints, scaleInputToOutput);
             ROS_INFO("Pose Rendering Done"); 
             op::log(" ");
-            
-            // [3, 720, 1280]
-            ROS_INFO_STREAM("output array size: [" << outputArray.getSize(0) << ", "
-                                                   << outputArray.getSize(1) << ", "
-                                                   << outputArray.getSize(2) << "]");
-   
 
             // Step 5 - OpenPose output format to cv::Mat and publish detected pose image
             // t: ~0.02+
             auto outputImage = opOutputToCvMat.formatToCvMat(outputArray);
-            sensor_msgs::Image output_ros_image;
-  			cvImagePtr->image = outputImage;
- 	  		output_ros_image = *(cvImagePtr->toImageMsg());
-  			image_skeleton_pub.publish(output_ros_image);
-  			
-  		    
-  		    // step 6 - Publish Pose Msg
-  		    // t: ~0.002+
-  		    retrievePoseInfo(poseKeypoints, keypoints_pub, bodypartMap);
-  			op::log("------------------------------------------------------------------------------");
-            
-            
-            // ------------------------- VISUALIZATION AND DATA SAVING -------------------------
-            // display rendered image
-            if (FLAGS_display_image)
-            {
-                frameDisplayer->displayFrame(outputImage, 10);
-                
-                /*alternative:
-                cv::imshow("OpenPose ROS Result", outputImage);
-                cv::waitKey(10);
-                */
-            }
                   			
   			
   			// save keypoints in json file
@@ -269,12 +212,11 @@ int openPoseDetection()
   			    cv::imwrite(imageName, outputImage);
   			}
             
-            rosImgSubscriber.resetCvImagePtr();
-            ++frame_id;
-        }
+            
+        
 
-        ros::spinOnce();
-    }
+        
+   
 
 
     // Measuring total time

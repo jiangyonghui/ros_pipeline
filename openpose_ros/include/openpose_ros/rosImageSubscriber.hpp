@@ -24,6 +24,7 @@ class RosImgSub
         void imageCallback(const sensor_msgs::ImageConstPtr& msg);
 
         cv_bridge::CvImagePtr& getCvImagePtr();
+        void resetCvImagePtr();
 };
 
 #endif

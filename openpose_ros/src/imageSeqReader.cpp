@@ -13,7 +13,7 @@
  #include <gflags/gflags.h>
  #include <glog/logging.h>
  
- DEFINE_string(image_seq_folder, 		"/home/nvidia/data/TakeLuggage/*.png",	"The location of image sequence");
+ DEFINE_string(image_seq_folder, 		"/home/nvidia/MasterThesis/code/ros_pipeline/rp_ws/src/openpose_ros/data/ScanPassenger/*.png",	"The location of image sequence");
  
  int ImageSeqReader()
  {
@@ -24,14 +24,13 @@
  	
 	// find image pattern and store the name in filenames
  	std::vector<cv::String> filenames;
- 	cv::String image_path = FLAGS_image_seq_folder;
- 	cv::glob(image_path, filenames);
+ 	cv::glob(FLAGS_image_seq_folder, filenames);
  	int image_num = filenames.size();
  	int count = 0;
  	
- 	ros::Rate loop_rate(0.2);
+ 	ros::Rate loop_rate(0.5);
  	
- 	while(ros::ok)
+ 	while(ros::ok())
  	{
  		if(count < image_num)
  		{
