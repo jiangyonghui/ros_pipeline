@@ -35,7 +35,7 @@ std::string image_folder_location = package_path + "/result/image/";
 DEFINE_int32(logging_level,			4,									"The logging level. Integer in the range [0, 255]. 0 will output any log() message,"
                                                 						"while 255 will not output any. Current OpenPose library messages are in the range 0-4:"
                                                 						"1 for low priority messages and 4 for important ones.");
-DEFINE_string(camera_topic,         "/cv_camera/image_raw",		     	"Image topic that OpenPose will process.");
+DEFINE_string(image_topic,         "/cv_camera/image_raw",		     	"Image topic that OpenPose will process.");
 DEFINE_string(model_folder, 		model_folder_location,				"Folder (absolute or relative) where the models (pose, face, ...) are located.");
 DEFINE_string(keypoints_folder, 	keypoints_folder_location,			"Folder where the output keypoints are located");
 DEFINE_string(image_folder,         image_folder_location,              "Folder where the output skeleton-rendered images are located");
@@ -101,13 +101,15 @@ int openPoseDetection()
     	(float)FLAGS_alpha_pose, (float)FLAGS_alpha_heatmap)); 
     
     std::shared_ptr<std::vector<op::Array<float>>> poseKpPtr(new std::vector<op::Array<float>>);
+    std::shared_ptr<std::vector<op::Array<float>>> outputArrayPtr(new std::vector<op::Array<float>>);
+    std::shared_ptr<std::vector<double>> scaleInputToOutputPtr(new std::vector<double>);
 
     // Initialize resources on desired thread (in this case single thread, i.e. we init resources here)
     poseExtractorCaffe->initializationOnThread();
     poseGpuRenderer->initializationOnThread();
     
     ros::NodeHandle nh;
-    RosImgSub rosImgSubscriber(nh, FLAGS_camera_topic);
+    RosImgSub rosImgSubscriber(nh, FLAGS_image_topic);
 
     // Initialize the image subscriber
     int frame_id = 0;
@@ -115,7 +117,9 @@ int openPoseDetection()
     ros::spinOnce();
     
     const std::chrono::high_resolution_clock::time_point timerBegin = std::chrono::high_resolution_clock::now();
-
+    
+    ROS_INFO("Initialization Done, waiting for image msg ...");
+    
     while (ros::ok())
     {
         // ------------------------- POSE ESTIMATION AND RENDERING -------------------------
@@ -142,6 +146,10 @@ int openPoseDetection()
             auto netInputArray = cvMatToOpInput.createArray(inputImage, scaleInputToNetInputs, netInputSizes);
             auto outputArray = cvMatToOpOutput.createArray(inputImage, scaleInputToOutput, outputResolution);
             
+            
+            scaleInputToOutputPtr->push_back(scaleInputToOutput);
+            outputArrayPtr->push_back(outputArray);
+            
     
             // Step 3 - Estimate poseKeypoints
             // t: 1.5 ~ 2.+ 
@@ -160,65 +168,86 @@ int openPoseDetection()
             rosImgSubscriber.resetCvImagePtr();
             ++frame_id;
         }
+        
+        if(poseKpPtr->size() == 24)
+        {
+            // do smoothing
+            ROS_INFO("Pose Smoothing ...");
+            
+            const auto num_people = poseKpPtr->at(0).getSize(0);
+            const auto num_nodes = poseKpPtr->at(0).getSize(1);
+            const auto num_channel = poseKpPtr->at(0).getSize(2);
+            const auto num_frame = poseKpPtr->size();
+            
+            ROS_INFO_STREAM("num people: " << num_people);
+            ROS_INFO_STREAM("num nodes: " << num_nodes);
+            ROS_INFO_STREAM("num channel: " << num_channel);
+            ROS_INFO_STREAM("num frame: " << num_frame);
+         
+            tk::spline s_x, s_y;
+            std::vector<double> t(num_frame), val_x, val_y; 
+            std::generate(t.begin(), t.end(), [n=0.]() mutable {return ++n;}); 
+            
+            for (auto node = 0; node < num_nodes; ++node)
+            {
+                for (auto frame = 0; frame < num_frame; ++frame)
+                {
+                    val_x.push_back(poseKpPtr->at(frame).at(3*node));
+                    val_y.push_back(poseKpPtr->at(frame).at(3*node+1));
+                }
+
+                s_x.set_points(t, val_x);
+                s_y.set_points(t, val_y);
+                
+                for (auto frame = 0; frame < num_frame; ++frame)
+                {
+                    poseKpPtr->at(frame).at(3*node) = s_x(static_cast<double>(frame));
+                    poseKpPtr->at(frame).at(3*node+1) = s_y(static_cast<double>(frame));
+                }
+                val_x.clear();
+                val_y.clear();  
+            }
+                    
+                   
+            // Render poseKeypoints
+            for (auto frame = 0; frame < num_frame; ++frame)
+            {
+                // t: ~0.02+
+                poseGpuRenderer->renderPose(outputArrayPtr->at(frame), poseKpPtr->at(frame), scaleInputToOutputPtr->at(frame));
+                ROS_INFO("Pose Rendering Done"); 
+                op::log(" ");
+
+                auto outputImage = opOutputToCvMat.formatToCvMat(outputArrayPtr->at(frame));
+                      			
+	
+	            // save keypoints in json file
+	            if  (FLAGS_save_json_keypoints)
+	            {
+		            std::shared_ptr<op::KeypointSaver> keypointJsonSaver(new op::KeypointSaver(FLAGS_keypoints_folder, op::DataFormat::Json));
+		
+		            std::string fileName = "keypoints_" + op::toFixedLengthString(frame, 3u);
+		            std::string keypointName = "pose_keypoints";
+		            std::vector<op::Array<float>> keypointVector{poseKpPtr->at(frame)};
+		
+		            keypointJsonSaver->saveKeypoints(keypointVector, fileName, keypointName);
+	            }
+	
+	            // save skeleton-rendered image
+	            if  (FLAGS_save_skeleton_images)
+	            {
+	                std::string imageName = FLAGS_image_folder + "skeleton_" + op::toFixedLengthString(frame, 3u) + ".png";
+	                cv::imwrite(imageName, outputImage);
+	            }
+            
+            }
+            
+            ros::shutdown();
+        }
          
         ros::spinOnce();
     }
-    
-    // do smoothing       
-    const auto num_people = poseKpPtr->at(0).getSize(0);
-    const auto num_nodes = poseKpPtr->at(0).getSize(1);
-    const auto num_channel = poseKpPtr->at(0).getSize(2);
-    const auto num_frame = poseKpPtr->size();
-    
-    tk::spline s;
-    std::vector<double> t(num_nodes), val(num_nodes); 
-    t = std::generate(t.begin(), t.end(), [n=0.]() mutable {return ++n;}); 
-    
-    for (auto frame = 0; frame < num_frame; ++frame)
-    {
-        // TODO
-    
-    }
-           
-            
-           
-            // Step 4 - Render poseKeypoints
-            // t: ~0.02+
-            poseGpuRenderer->renderPose(outputArray, poseKeypoints, scaleInputToOutput);
-            ROS_INFO("Pose Rendering Done"); 
-            op::log(" ");
-
-            // Step 5 - OpenPose output format to cv::Mat and publish detected pose image
-            // t: ~0.02+
-            auto outputImage = opOutputToCvMat.formatToCvMat(outputArray);
-                  			
-  			
-  			// save keypoints in json file
-  			if  (FLAGS_save_json_keypoints)
-  			{
-  				std::shared_ptr<op::KeypointSaver> keypointJsonSaver(new op::KeypointSaver(FLAGS_keypoints_folder, op::DataFormat::Json));
-  				
-  				std::string fileName = "keypoints_" + op::toFixedLengthString(frame_id, 3u);
-  				std::string keypointName = "pose_keypoints";
-  				std::vector<op::Array<float>> keypointVector{poseKeypoints};
-  				
-  				keypointJsonSaver->saveKeypoints(keypointVector, fileName, keypointName);
-  			}
-  			
-  			// save skeleton-rendered image
-  			if  (FLAGS_save_skeleton_images)
-  			{
-  			    std::string imageName = FLAGS_image_folder + "skeleton_" + op::toFixedLengthString(frame_id, 3u) + ".png";
-  			    cv::imwrite(imageName, outputImage);
-  			}
-            
-            
         
-
-        
-   
-
-
+    
     // Measuring total time
     const double totalTimeSec = (double)std::chrono::duration_cast<std::chrono::nanoseconds>
                               	(std::chrono::high_resolution_clock::now()-timerBegin).count() * 1e-9;
@@ -237,7 +266,7 @@ int openPoseDetection()
 int main(int argc, char *argv[])
 {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    ros::init(argc, argv, "openpose_ros");
+    ros::init(argc, argv, "pose_smoothing");
 
     return openPoseDetection();
 }

@@ -44,7 +44,7 @@ std::string image_folder_location = package_path + "/result/image/";
 DEFINE_int32(logging_level,			4,									"The logging level. Integer in the range [0, 255]. 0 will output any log() message,"
                                                 						"while 255 will not output any. Current OpenPose library messages are in the range 0-4:"
                                                 						"1 for low priority messages and 4 for important ones.");
-DEFINE_string(camera_topic,         "/cv_camera/image_raw",		     	"Image topic that OpenPose will process.");
+DEFINE_string(image_topic,         "/cv_camera/image_raw",		     	"Image topic that OpenPose will process.");
 DEFINE_string(model_folder, 		model_folder_location,				"Folder (absolute or relative) where the models (pose, face, ...) are located.");
 DEFINE_string(keypoints_folder, 	keypoints_folder_location,			"Folder where the output keypoints are located");
 DEFINE_string(image_folder,         image_folder_location,              "Folder where the output skeleton-rendered images are located");
@@ -130,6 +130,7 @@ int openPoseDetection()
     std::shared_ptr<op::PoseGpuRenderer> poseGpuRenderer(new op::PoseGpuRenderer(
     	poseModel, poseExtractorCaffe, (float)FLAGS_render_threshold, !FLAGS_disable_blending, 
     	(float)FLAGS_alpha_pose, (float)FLAGS_alpha_heatmap)); 
+    	
     std::shared_ptr<op::FrameDisplayer> frameDisplayer(new op::FrameDisplayer("OpenPose ROS Node", outputSize)); 
 
 
@@ -154,7 +155,7 @@ int openPoseDetection()
 	
 	ROS_INFO("Initialization Done!");
 	
-	RosImgSub rosImgSubscriber(nh, FLAGS_camera_topic);
+	RosImgSub rosImgSubscriber(nh, FLAGS_image_topic);
 	
     ros::spinOnce();
     
