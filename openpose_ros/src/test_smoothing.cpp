@@ -35,12 +35,12 @@ std::string image_folder_location = package_path + "/result/image/";
 DEFINE_int32(logging_level,			4,									"The logging level. Integer in the range [0, 255]. 0 will output any log() message,"
                                                 						"while 255 will not output any. Current OpenPose library messages are in the range 0-4:"
                                                 						"1 for low priority messages and 4 for important ones.");
-DEFINE_string(image_topic,         "/cv_camera/image_raw",		     	"Image topic that OpenPose will process.");
+DEFINE_string(image_topic,         "/image_reader/image_raw",		    "Image topic that OpenPose will process.");
 DEFINE_string(model_folder, 		model_folder_location,				"Folder (absolute or relative) where the models (pose, face, ...) are located.");
 DEFINE_string(keypoints_folder, 	keypoints_folder_location,			"Folder where the output keypoints are located");
 DEFINE_string(image_folder,         image_folder_location,              "Folder where the output skeleton-rendered images are located");
 DEFINE_bool(save_json_keypoints, 	false,								"Set true to enable keypoints output in json file");
-DEFINE_bool(save_skeleton_images,   false,                              "Set true to save skeleton-rendered images");
+DEFINE_bool(save_skeleton_images,   true,                              "Set true to save skeleton-rendered images");
 DEFINE_bool(display_image,          false,                              "Set true to display skeleton-renderd image");
 DEFINE_string(net_resolution, 		"656x368", 							"Multiples of 16. If it is increased, the accuracy usually increases."
                                          								"If it is decreased, the speed increases.");
@@ -102,8 +102,7 @@ int openPoseDetection()
     
     std::shared_ptr<std::vector<op::Array<float>>> poseKpPtr(new std::vector<op::Array<float>>);
     std::shared_ptr<std::vector<op::Array<float>>> outputArrayPtr(new std::vector<op::Array<float>>);
-    std::shared_ptr<std::vector<double>> scaleInputToOutputPtr(new std::vector<double>);
-
+    
     // Initialize resources on desired thread (in this case single thread, i.e. we init resources here)
     poseExtractorCaffe->initializationOnThread();
     poseGpuRenderer->initializationOnThread();
@@ -126,6 +125,8 @@ int openPoseDetection()
         // Step 1 - Get cv_image ptr 
         cv_bridge::CvImagePtr cvImagePtr = rosImgSubscriber.getCvImagePtr();                     
         
+        double scaleInputToOutput;
+        
         if(cvImagePtr != nullptr)
         {	
         	op::log(" ");
@@ -134,7 +135,7 @@ int openPoseDetection()
             
             // Step 2 - Format input image to OpenPose input and output formats
             const op::Point<int> imageSize{inputImage.cols, inputImage.rows};
-			double scaleInputToOutput;
+			
             std::vector<double> scaleInputToNetInputs;
             std::vector<op::Point<int>> netInputSizes;
             op::Point<int> outputResolution;
@@ -145,12 +146,8 @@ int openPoseDetection()
             // t: ~0.03+
             auto netInputArray = cvMatToOpInput.createArray(inputImage, scaleInputToNetInputs, netInputSizes);
             auto outputArray = cvMatToOpOutput.createArray(inputImage, scaleInputToOutput, outputResolution);
-            
-            
-            scaleInputToOutputPtr->push_back(scaleInputToOutput);
             outputArrayPtr->push_back(outputArray);
             
-    
             // Step 3 - Estimate poseKeypoints
             // t: 1.5 ~ 2.+ 
             ROS_INFO("Performing Forward Pass ....");
@@ -169,10 +166,12 @@ int openPoseDetection()
             ++frame_id;
         }
         
-        if(poseKpPtr->size() == 24)
+        // after all frame keypoints are extracted
+        if (poseKpPtr->size() == 24)
         {
             // do smoothing
-            ROS_INFO("Pose Smoothing ...");
+            ROS_INFO("Pose Smoothing");
+            op::log("--------------");
             
             const auto num_people = poseKpPtr->at(0).getSize(0);
             const auto num_nodes = poseKpPtr->at(0).getSize(1);
@@ -183,29 +182,54 @@ int openPoseDetection()
             ROS_INFO_STREAM("num nodes: " << num_nodes);
             ROS_INFO_STREAM("num channel: " << num_channel);
             ROS_INFO_STREAM("num frame: " << num_frame);
+            op::log(" ");
          
             tk::spline s_x, s_y;
-            std::vector<double> t(num_frame), val_x, val_y; 
+            std::vector<double> t(num_frame); 
             std::generate(t.begin(), t.end(), [n=0.]() mutable {return ++n;}); 
             
+            // TODO: Pose Spatial and Temporal Interpolation
             for (auto node = 0; node < num_nodes; ++node)
             {
-                for (auto frame = 0; frame < num_frame; ++frame)
-                {
-                    val_x.push_back(poseKpPtr->at(frame).at(3*node));
-                    val_y.push_back(poseKpPtr->at(frame).at(3*node+1));
-                }
-
-                s_x.set_points(t, val_x);
-                s_y.set_points(t, val_y);
+                std::vector<double> t_x, t_y, val_x, val_y;
                 
                 for (auto frame = 0; frame < num_frame; ++frame)
                 {
-                    poseKpPtr->at(frame).at(3*node) = s_x(static_cast<double>(frame));
-                    poseKpPtr->at(frame).at(3*node+1) = s_y(static_cast<double>(frame));
+                    auto x = poseKpPtr->at(frame).at(3*node);
+                    auto y = poseKpPtr->at(frame).at(3*node+1);
+                    
+                    if (x > 1) 
+                    {   
+                        t_x.push_back(t.at(frame));
+                        val_x.push_back(x);
+                    }
+                    
+                    if (y > 1)
+                    {
+                        t_y.push_back(t.at(frame));
+                        val_y.push_back(y); 
+                    } 
                 }
-                val_x.clear();
-                val_y.clear();  
+                
+                if (t_x.size() < 2)
+                {
+                    for (auto frame = 0; frame < num_frame; ++frame)
+                    {
+                        poseKpPtr->at(frame).at(3*node) = 0.0;
+                        poseKpPtr->at(frame).at(3*node+1) = 0.0;
+                    }
+                }
+                else
+                {
+                    s_x.set_points(t_x, val_x);
+                    s_y.set_points(t_y, val_y);
+                    
+                    for (auto frame = 0; frame < num_frame; ++frame)
+                    {
+                        poseKpPtr->at(frame).at(3*node) = s_x(static_cast<double>(frame));
+                        poseKpPtr->at(frame).at(3*node+1) = s_y(static_cast<double>(frame));
+                    }
+                }
             }
                     
                    
@@ -213,12 +237,10 @@ int openPoseDetection()
             for (auto frame = 0; frame < num_frame; ++frame)
             {
                 // t: ~0.02+
-                poseGpuRenderer->renderPose(outputArrayPtr->at(frame), poseKpPtr->at(frame), scaleInputToOutputPtr->at(frame));
+                poseGpuRenderer->renderPose(outputArrayPtr->at(frame), poseKpPtr->at(frame), scaleInputToOutput);
                 ROS_INFO("Pose Rendering Done"); 
-                op::log(" ");
 
-                auto outputImage = opOutputToCvMat.formatToCvMat(outputArrayPtr->at(frame));
-                      			
+                auto outputImage = opOutputToCvMat.formatToCvMat(outputArrayPtr->at(frame));     			
 	
 	            // save keypoints in json file
 	            if  (FLAGS_save_json_keypoints)

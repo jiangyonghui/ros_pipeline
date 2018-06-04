@@ -8,62 +8,11 @@
 #include <glog/logging.h>
 
 std::string package_path = ros::package::getPath("openpose_ros");
-std::string image_folder = package_path + "/data/ScanPassenger/*.png";
+std::string data_folder = package_path + "/data/";
 
-DEFINE_string(image_path,    image_folder,     "The location of image sequence");
+DEFINE_string(image_folder,    "ScanPassenger/*.png",     "The location of image sequence");
+DEFINE_double(read_rate,       0.5,                        "image read rate");
 
-
-
-// int ImageSeqReader()
-// {
-// 	// declare ros nodehandler and publisher
-// 	ros::NodeHandle nh;
-// 	image_transport::ImageTransport it(nh);
-// 	image_transport::Publisher image_seq_pub = it.advertise("/image_reader/image_raw", 1);
-// 	
-//	// find image pattern and store the name in filenames
-// 	std::vector<cv::String> filenames;
-// 	cv::glob(FLAGS_image_seq_folder, filenames);
-// 	int image_num = filenames.size();
-// 	int count = 0;
-// 	
-// 	ros::Rate loop_rate(30);
-// 	
-// 	while(ros::ok())
-// 	{
-// 		if(count < image_num)
-// 		{
-// 			ROS_INFO_STREAM("Frame ID: " << count);
-// 			cv::Mat image = cv::imread(filenames.at(count));
-// 			
-// 			if(!image.empty())
-// 			{	
-// 				if (FLAGS_display_image)
-// 				{
-// 				    cv::namedWindow("Display Window");
-// 				    cv::imshow("Display Window", image);
-// 				    cv::waitKey(10);
-// 				}
-// 				
-// 				sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
-// 				image_seq_pub.publish(msg);
-// 
-// 				++count;
-// 				ROS_INFO("CV Image Converted to ROS Msg Succeed!");
-// 			}
-// 			else
-// 			{
-// 				ROS_ERROR("Invalid Image, no message is transferred!");
-// 				return -1;
-// 			}
-// 			
-// 			ros::spinOnce();
-// 			loop_rate.sleep();
-// 		}
-// 	}
-// 	
-// 	return 0;
-// }
 
 int main(int argc, char** argv)
 {
@@ -73,7 +22,8 @@ int main(int argc, char** argv)
     
     ros::NodeHandle nh;
     const double pub_rate = 0.5;
-    ImageReader imageReader(nh, image_folder, pub_rate);
+    std::string image_path = data_folder + FLAGS_image_folder;
+    ImageReader imageReader(nh, image_path, FLAGS_read_rate, "Image Window");
 
     return imageReader.pubImageMsg();
 }

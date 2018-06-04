@@ -48,7 +48,7 @@ int ImageReader::pubImageMsg()
  				image_pub_.publish(image_msg_);
  
  				++count;
- 				ROS_INFO("CV Image Converted to ROS Msg Succeed!");
+ 				ROS_INFO("CV Image to ROS Msg Conversion Done!");
  			}
  			else
  			{

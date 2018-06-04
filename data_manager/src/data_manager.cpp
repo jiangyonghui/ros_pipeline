@@ -88,7 +88,7 @@ void nodeKpSubscriber()
 	nh_p.param<int>("tensor_offset", tensor_offset, FLAGS_tensor_offset);
 	nh_p.param<int>("tensor_str", tensor_str, FLAGS_tensor_stride);
 	
-	OpenposeKpSub openposeKpSubscriber(nh, pose_topic, node_seq, op::flagsToPoseModel(pose_model));
+	OpenposeKpSub openposeKpSubscriber(nh, pose_topic, nodeSeq, op::flagsToPoseModel(pose_model));
 	openposeKpSubscriber.launchSubscriber();
 	
 	auto frame_id = -1;
