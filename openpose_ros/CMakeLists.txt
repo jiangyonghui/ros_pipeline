@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(openpose_ros)
 
-add_compile_options(-std=c++11)
+#add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)
 add_definitions(-DUSE_CAFFE)
 
 ## Set include dirs
@@ -39,7 +40,7 @@ catkin_package(
   roslib
   image_transport)			 
 
-find_package(OpenCV COMPONENTS highgui)
+find_package(OpenCV COMPONENTS highgui imgcodecs)
 
 include_directories(
   include
@@ -61,37 +62,45 @@ set(OPENPOSE_ROS_SRC_LIST
     src/rosImageSubscriber.cpp)
 
 
-add_executable(openpose_ros src/openpose_ros.cpp ${OPENPOSE_ROS_SRC_LIST})
-target_link_libraries(openpose_ros 	${catkin_LIBRARIES} 
-				   					${OPENPOSE_LIBRARY} 
-				   					${CAFFE_LIBRARY} 
-				   					${CUDA_LIBRARY} 
-				   					${GFLAGS_LIBRARY} 
-				   					${GLOG_LIBRARY}
-				   					${OpenCV_LIBRARIES})
-add_dependencies(openpose_ros ${catkin_EXPORTED_TARGETS})
-
 add_executable(openpose src/openpose.cpp)
-target_link_libraries(openpose   	${catkin_LIBRARIES} 
+target_link_libraries(openpose  ${catkin_LIBRARIES} 
+				   				${OPENPOSE_LIBRARY} 
+				   				${CAFFE_LIBRARY} 
+				   				${CUDA_LIBRARY} 
+				   				${GFLAGS_LIBRARY} 
+				   				${GLOG_LIBRARY}
+				   				${OpenCV_LIBRARIES})
+
+
+add_executable(openpose_ros src/openpose_ros.cpp ${OPENPOSE_ROS_SRC_LIST})
+target_link_libraries(openpose_ros  ${catkin_LIBRARIES} 
 				   					${OPENPOSE_LIBRARY} 
 				   					${CAFFE_LIBRARY} 
 				   					${CUDA_LIBRARY} 
 				   					${GFLAGS_LIBRARY} 
 				   					${GLOG_LIBRARY}
 				   					${OpenCV_LIBRARIES})
-<<<<<<< HEAD
+add_dependencies(openpose_ros   ${catkin_EXPORTED_TARGETS})
 
-=======
->>>>>>> devel
 
-add_executable(image_seq_reader src/imageSeqReader.cpp)
-target_link_libraries(image_seq_reader	${catkin_LIBRARIES}   
-				   						${GFLAGS_LIBRARY} 
-				   						${GLOG_LIBRARY}
-				   						${OpenCV_LIBRARIES}
-				   						${PTHREAD_LIBRARY})
-add_dependencies(image_seq_reader	${catkin_EXPORTED_TARGETS})
+add_executable(image_reader src/imageSeqReader.cpp src/imageReader.cpp)
+target_link_libraries(image_reader  ${catkin_LIBRARIES}   
+				   					${GFLAGS_LIBRARY} 
+				   					${GLOG_LIBRARY}
+				   					${OpenCV_LIBRARIES}
+				   					${PTHREAD_LIBRARY})
+add_dependencies(image_reader   ${catkin_EXPORTED_TARGETS})
 
+
+add_executable(pose_smoothing src/test_smoothing.cpp ${OPENPOSE_ROS_SRC_LIST})
+target_link_libraries(pose_smoothing    ${catkin_LIBRARIES} 
+				   					    ${OPENPOSE_LIBRARY} 
+				   					    ${CAFFE_LIBRARY} 
+				   					    ${CUDA_LIBRARY} 
+				   					    ${GFLAGS_LIBRARY} 
+				   					    ${GLOG_LIBRARY}
+				   					    ${OpenCV_LIBRARIES})
+add_dependencies(pose_smoothing ${catkin_EXPORTED_TARGETS})
 
 
 

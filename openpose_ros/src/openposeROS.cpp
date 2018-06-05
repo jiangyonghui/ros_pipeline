@@ -13,8 +13,8 @@ message_repository::BodypartDetection getBodyPartDetectionFromArrayAndIndex(cons
 {
   	message_repository::BodypartDetection bodypart;
 
-  	bodypart.x = array[idx];
-  	bodypart.y = array[idx + 1];
+  	bodypart.x = static_cast<double>(array[idx]);
+  	bodypart.y = static_cast<double>(array[idx + 1]);
   	bodypart.confidence = array[idx + 2];
   	
   	return bodypart;
@@ -44,17 +44,18 @@ bool retrievePoseInfo(const op::Array<float>& poseKeypoints, ros::Publisher& key
    	 	return false;
   	}
 
-  	int num_people = poseKeypoints.getSize(0);
-  	int num_bodyparts = poseKeypoints.getSize(1);
+  	const auto num_people = poseKeypoints.getSize(0);
+  	const auto num_bodyparts = poseKeypoints.getSize(1);
 
   	ROS_INFO("Detected Person(s): %d", num_people);
   	op::log("---------------------------");
 
-  	//for (size_t person_idx = 0; person_idx < num_people; person_idx++) 
+  	for (size_t person_idx = 0; person_idx < num_people; person_idx++) 
   	// TODO: person tracking ...
   	// silly output the first detected person
-  	for (size_t person_idx = 0; person_idx < 1; person_idx++)
+  	//for (size_t person_idx = 0; person_idx < 1; person_idx++)
   	{
+    	// publish person msg
     	op::log(" ");
     	ROS_INFO("Person ID: %zu", person_idx);
     	op::log(" ");

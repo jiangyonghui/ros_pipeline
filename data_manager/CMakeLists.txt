@@ -31,7 +31,8 @@ find_package(catkin REQUIRED COMPONENTS
 	image_transport)
 
 find_package(HDF5 COMPONENTS CXX HL)
-find_package(Boost COMPONENTS iostreams filesystem system)
+find_package(Boost COMPONENTS iostreams filesystem system thread)
+find_package(Armadillo COMPONENTS armadillo)
 
 catkin_package(
   CATKIN_DEPENDS 
@@ -52,7 +53,8 @@ include_directories(
   	${CUDA_INCLUDE_DIRS}
   	${OTHER_INCLUDE_DIRS}
   	${HDF5_INCLUDE_DIRS}
-  	${Boost_INCLUDE_DIRS})
+  	${Boost_INCLUDE_DIRS}
+  	${Armadillo_INCLUDE_DIRS})
 
 ## find the corresponding libs 
 find_library(OPENPOSE_LIBRARY openpose /home/nvidia/MasterThesis/code/ros_pipeline/3rdPartyLib/openpose/build/lib)
@@ -70,7 +72,8 @@ target_link_libraries(data_manager	${catkin_LIBRARIES}
 				   					${GFLAGS_LIBRARY} 
 				   					${GLOG_LIBRARY}
 				   					${HDF5_LIBRARIES}
-				   					${Boost_LIBRARIES})
+				   					${Boost_LIBRARIES}
+				   					${Armadillo_LIBRARIES})
 add_dependencies(data_manager  ${catkin_EXPORTED_TARGETS})
 
 catkin_install_python(PROGRAMS scripts/action_classifier

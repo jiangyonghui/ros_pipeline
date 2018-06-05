@@ -7,6 +7,7 @@ import rospy
 import roslib
 import numpy as np
 import h5py
+import time
 
 import keras
 from keras.models import Sequential
@@ -14,62 +15,7 @@ from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D, SeparableConv2D
 from keras.models import load_model,Model
 
-from message_repository.srv import ActionnessProposal,ActionnessProposalResponse
 from message_repository.srv import ActionClassifier,ActionClassifierResponse
-
-
-## class: actionness proposal
-class PoseNetActionnessProposal:
-	def __init__(self, num_classes, input_shape):
-		self.num_classes = num_classes
-		self.input_shape = input_shape
-		self.model_actionness = []
-		return
-
-	def actionnessModel(self):
-		model = Sequential()
-		model.add(Conv2D(64, (3, 2), activation='relu', input_shape=self.input_shape))
-		print(model.output_shape)
-		model.add(MaxPooling2D(pool_size=(2, 2), strides=1))
-		print(model.output_shape)
-		model.add(Conv2D(128, (3, 2), activation='relu'))
-		print(model.output_shape)
-		model.add(MaxPooling2D(pool_size=(2, 2), strides=1))
-		model.add(Flatten())
-		model.add(Dense(1024, activation='relu',name='Dense1'))
-		model.add(Dense(self.num_classes, activation='softmax',name='SoftMax'))
-		print(model.summary())
-	
-		return model
-
-	def initModel(self, preTrained_model):
-		self.model_actionness = self.actionnessModel()
-		self.model_actionness = load_model(preTrained_model)
-		self.model_actionness.predict(np.zeros((1,)+self.input_shape)) 
-
-		return
-
-
-	def actionnessLabelCallback(self, req):
-		rospy.loginfo("Actionness Proposal Callback")
-		
-		# convert msg to numpy array 
-		pose_tensor = multiArrayToMatrixList(req.tensor)
-		input_shape = pose_tensor.shape
-		pose_tensor = np.expand_dims(pose_tensor, axis=0)
-		
-		print "input shape: ", input_shape
-		print "tensor shape: ", pose_tensor.shape	
-		
-		# configure params and make prediction
-		label_prob = self.model_actionness.predict(pose_tensor)
-		actionness_label = int(np.argmax(label_prob, axis=1)+1)
-		
-		rospy.loginfo("actionness label: %d", actionness_label)
-		print " "
-		
-		return ActionnessProposalResponse(actionness_label)
-
 
 ## class: action classifier
 class PoseNetClassifier:
@@ -107,6 +53,7 @@ class PoseNetClassifier:
 		rospy.loginfo("Action Classification Callback")
 		
 		# convert msg to numpy array 
+		# t: ~0.002
 		pose_tensor = multiArrayToMatrixList(req.tensor)
 		input_shape = pose_tensor.shape
 		pose_tensor = np.expand_dims(pose_tensor, axis=0)
@@ -115,6 +62,7 @@ class PoseNetClassifier:
 		print "tensor shape: ", pose_tensor.shape	
 		
 		# configure params and make prediction
+		# t: ~0.2+
 		label_prob = self.model_classifier.predict(pose_tensor)
 		action_label = int(np.argmax(label_prob, axis=1)+1)
 		
@@ -163,26 +111,20 @@ def pose_net_server():
 	rospy.init_node('pose_net')
 	
 	## init model 
-	preTrained_model_actionness = "/home/nvidia/MasterThesis/code/ros_pipeline/data/airport_5735half_fc2_pose.h5"
 	preTrained_model_classifier = "/home/nvidia/MasterThesis/code/ros_pipeline/data/airport_5735half_fc2_pose.h5"
 	
 	# model shape and class numbers
-	input_shape_actionness = (10,54,3)
 	input_shape_classifier = (10,54,3) 
-	num_classes_actionness = 4
 	num_classes_classifier = 4
 	
 	## declare service
-	actionness_proposal = PoseNetActionnessProposal(num_classes=num_classes_actionness, input_shape=input_shape_actionness)
-	actionness_proposal.initModel(preTrained_model=preTrained_model_actionness)
-	service_actionness = rospy.Service('actionness_proposal', ActionnessProposal, actionness_proposal.actionnessLabelCallback)
-
 	classifier = PoseNetClassifier(num_classes=num_classes_classifier, input_shape=input_shape_classifier)
 	classifier.initModel(preTrained_model=preTrained_model_classifier)
-	service_classifier = rospy.Service('action_classifier', ActionClassifier, classifier.actionLabelCallback)
+	
+	service_classifier = rospy.Service('/pose_net/action_classifier', ActionClassifier, classifier.actionLabelCallback)
 
 	rospy.loginfo("Initialization Successful!")
-	rospy.loginfo("PoseNet Action Proposal and Classification Server is ready, waiting for request ...")
+	rospy.loginfo("Ready for action classification ...")
 	print(" ")
 	
 	rospy.spin()
@@ -191,8 +133,8 @@ def pose_net_server():
 	
 
 if __name__ == "__main__":
-	print("PoseNet -- Action Proposal And Classification Server")
-	print("----------------------------------------------------")
+	print("PoseNet -- Action Classification Server")
+	print("---------------------------------------")
 	pose_net_server()	
 
 

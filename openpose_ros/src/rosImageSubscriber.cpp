@@ -17,8 +17,6 @@ RosImgSub::~RosImgSub()
 
 void RosImgSub::imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
-    cv_img_ptr_ = nullptr;
-    
     try
     {
         cv_img_ptr_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
@@ -35,6 +33,12 @@ void RosImgSub::imageCallback(const sensor_msgs::ImageConstPtr& msg)
 cv_bridge::CvImagePtr& RosImgSub::getCvImagePtr()
 {
     return cv_img_ptr_;
+}
+
+void RosImgSub::resetCvImagePtr()
+{
+    cv_img_ptr_.reset();
+    return;
 }
  
 

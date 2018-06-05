@@ -5,7 +5,9 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/Float64MultiArray.h>
+#include <Armadillo/armadillo>
+#include <openpose/headers.hpp>
 
 
 // define bodypart nodes
@@ -43,25 +45,22 @@ struct ActionessHistogram
 };
 
 
-// add tensor to repository
-void AddTensor(Eigen::Tensor<float, 3>& repo, std::vector<float>& node_keypoints, const int& index);
+// pose keypoints interpolation
+void poseInterpolator(arma::mat& mat);
 
-// get proposal tensor
-Eigen::Tensor<float, 3> GetProposalTensor(const Eigen::Tensor<float, 3>& repo, const int& tensor_id, const int& swindow_len);
+// normalization
+void normTensor(arma::mat& node_mat, const op::Point<int>& imageSize, const int id_neck, const int id_rhip);
 
-// retrieve grouped action tensor
-Eigen::Tensor<float, 3> GetActionTensor(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& action_group);
+// calc 3d tensor
+void calcTensor(std::shared_ptr<arma::cube> sWindow);
 
-// convert eigen tensor to std_msgs::Float32MultiArray msg
-void EigenTensorToMsg(const Eigen::Tensor<float, 3>& tensor, std_msgs::Float32MultiArray& msg);
-
-// resample action group to size of swindow_len
-void ResampleActionGroup(std::vector<int>& action_group, const int& swindow_len, const int& swindow_str);
+// convert tensor to msg
+void EigenTensorToMsg(std::shared_ptr<arma::cube> tensorPtr, std_msgs::Float64MultiArray& msg);
 
 // write tensor to h5 file
-void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name);
+//void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name);
 
-// optional: plot actionness proposal --> TODO 
+// optional: plot actionness proposal --> TODO
 // void PlotActionnessProposal(...)
 
 #endif
