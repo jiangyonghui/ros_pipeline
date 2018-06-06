@@ -71,6 +71,8 @@ DEFINE_double(render_threshold, 	0.05,
               															"than this threshold will be rendered. Generally, a high threshold (> 0.5) will only"
               															"render very clear body parts; while small thresholds (~0.1) will also output guessed"
               															"and occluded keypoints, but also more false positives (i.e. wrong detections).");
+DEFINE_double(outlier_threshold,   1.0,                                 "Node keypoints whose coordinate falls under the value are treated as outlier and will not be"
+                                                                        "taken into account for pose smoothing");
 
 int openPoseDetection()
 {
@@ -172,17 +174,10 @@ int openPoseDetection()
             // do smoothing
             ROS_INFO("Pose Smoothing");
             op::log("--------------");
-            
-            const auto num_people = poseKpPtr->at(0).getSize(0);
-            const auto num_nodes = poseKpPtr->at(0).getSize(1);
-            const auto num_channel = poseKpPtr->at(0).getSize(2);
-            const auto num_frame = poseKpPtr->size();
-            
-            ROS_INFO_STREAM("num people: " << num_people);
-            ROS_INFO_STREAM("num nodes: " << num_nodes);
-            ROS_INFO_STREAM("num channel: " << num_channel);
-            ROS_INFO_STREAM("num frame: " << num_frame);
             op::log(" ");
+            
+            const auto num_nodes = 18;
+            const auto num_frame = poseKpPtr->size();
          
             tk::spline s_x, s_y;
             std::vector<double> t(num_frame); 
@@ -192,32 +187,38 @@ int openPoseDetection()
             for (auto node = 0; node < num_nodes; ++node)
             {
                 std::vector<double> t_x, t_y, val_x, val_y;
+                double x,y;
                 
                 for (auto frame = 0; frame < num_frame; ++frame)
                 {
-                    auto x = poseKpPtr->at(frame).at(3*node);
-                    auto y = poseKpPtr->at(frame).at(3*node+1);
-                    
-                    if (x > 1) 
+                    if (frame == 16 || frame == 21 || frame == 22)
+                    {
+                        x = poseKpPtr->at(frame).at(18*3+3*node);
+                        y = poseKpPtr->at(frame).at(18*3+3*node+1);
+                    }
+                    else
+                    {
+                        x = poseKpPtr->at(frame).at(3*node);
+                        y = poseKpPtr->at(frame).at(3*node+1);
+                    }
+                                        
+                    if (x > FLAGS_outlier_threshold) 
                     {   
                         t_x.push_back(t.at(frame));
                         val_x.push_back(x);
                     }
                     
-                    if (y > 1)
+                    if (y > FLAGS_outlier_threshold)
                     {
                         t_y.push_back(t.at(frame));
                         val_y.push_back(y); 
                     } 
                 }
                 
-                if (t_x.size() < 2)
+                if (t_x.size() <= 2)
                 {
-                    for (auto frame = 0; frame < num_frame; ++frame)
-                    {
-                        poseKpPtr->at(frame).at(3*node) = 0.0;
-                        poseKpPtr->at(frame).at(3*node+1) = 0.0;
-                    }
+                    ROS_INFO_STREAM("node " << node << " skipped!");
+                    continue;
                 }
                 else
                 {
@@ -226,8 +227,16 @@ int openPoseDetection()
                     
                     for (auto frame = 0; frame < num_frame; ++frame)
                     {
-                        poseKpPtr->at(frame).at(3*node) = s_x(static_cast<double>(frame));
-                        poseKpPtr->at(frame).at(3*node+1) = s_y(static_cast<double>(frame));
+                        if (frame == 16 || frame == 21 || frame == 22)
+                        {
+                            poseKpPtr->at(frame).at(18*3+3*node) = s_x(static_cast<double>(frame));
+                            poseKpPtr->at(frame).at(18*3+3*node+1) = s_y(static_cast<double>(frame));
+                        }
+                        else
+                        {
+                            poseKpPtr->at(frame).at(3*node) = s_x(static_cast<double>(frame));
+                            poseKpPtr->at(frame).at(3*node+1) = s_y(static_cast<double>(frame));
+                        }
                     }
                 }
             }

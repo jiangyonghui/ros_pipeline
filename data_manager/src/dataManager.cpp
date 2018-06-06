@@ -23,7 +23,8 @@ void poseInterpolator(arma::mat& mat)
         tk::spline s;
         t.clear();
         val.clear();
-
+        
+        // TODO: eliminate outlier
         arma::uvec t_spline = arma::find_finite(mat.col(col));
         arma::vec val_spline = static_cast<arma::vec>(mat.col(col)).elem(t_spline);
 
