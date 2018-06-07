@@ -9,43 +9,67 @@
 
 
 // pose keypoints interpolation
-void poseInterpolator(arma::mat& mat)
+void poseInterpolator(arma::mat& mat, const std::vector<int>& node_seq)
 {
     ROS_INFO("Starting Pose Interpolation ...");
     
     const auto n_rows = mat.n_rows;
     const auto n_cols = mat.n_cols;
-    std::vector<double> t;
-    std::vector<double> val;
 
     for (auto col = 0; col < n_cols; ++col)
     {
-        tk::spline s;
-        t.clear();
-        val.clear();
+        //std::cout << "col " << col << std::endl;
+        //mat.col(col).print("before interpolation: ");
         
-        // TODO: eliminate outlier
-        arma::uvec t_spline = arma::find_finite(mat.col(col));
-        arma::vec val_spline = static_cast<arma::vec>(mat.col(col)).elem(t_spline);
-
-        for (arma::uvec::iterator it = t_spline.begin(); it != t_spline.end(); ++it)
+        // TODO: eliminate outlier --> get the non-zero elements
+        // find nonzero vals per column 
+        arma::uvec t_spline = arma::find(mat.col(col));
+        
+        // interpolation with at least 3 nonzero points 
+        if (t_spline.size() <= 2)
         {
-            t.push_back(*it);
+            std::string node_name = data_manager::POSE_COCO_BODY_PARTS.at(node_seq.at(col/2));
+            std::string node_coordinate = !(col%2) ? "x" : "y";
+            
+            ROS_WARN("The %s of Node %s is skipped for pose smoothing, probably the node is overly obstrcuted!", 
+                      node_coordinate.c_str(), node_name.c_str());
         }
-
-        for (arma::vec::iterator it = val_spline.begin(); it != val_spline.end(); ++it)
+        // no need for interpolation if no missing points
+        else if (t_spline.size() == n_rows)
         {
-            val.push_back(*it);
+            ROS_INFO("No need for interpolation!");
         }
+        else
+        {   
+            tk::spline s;
+            std::vector<double> t;
+            std::vector<double> val;
 
-        s.set_points(t, val);
+            arma::vec val_spline = static_cast<arma::vec>(mat.col(col))(t_spline);
+            
+            for (arma::uvec::iterator it = t_spline.begin(); it != t_spline.end(); ++it)
+            {
+                t.push_back(*it);
+            }
 
-        for (auto row = 0; row < n_rows; ++row)
-        {
-            static_cast<arma::vec>(mat.col(col)).at(row) = s(row);
+            for (arma::vec::iterator it = val_spline.begin(); it != val_spline.end(); ++it)
+            {
+                val.push_back(*it);
+            }
+            
+            s.set_points(t, val);
+
+            for (auto row = 0; row < n_rows; ++row)
+            {
+                mat.col(col)(row) = s(row);
+            }
+            
+            //mat.col(col).print("after interpolation:");     
         }
     }
     
+    //mat.print("after interpolation mat: ");
+
     ROS_INFO("Pose Interpolation Done!");
     
     return;
