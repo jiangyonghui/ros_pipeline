@@ -1,0 +1,3 @@
+[submodule "3d_pose_ros"]
+	path = 3d_pose_ros
+	url = https://github.com/jiangyonghui/pytorch-pose-hg-3d
