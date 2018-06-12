@@ -30,3 +30,12 @@ Description: can't uninstall enum34
 Solution: maunally remove enum34 and its info file at /usr/lib/python2.7/dist-packages and run again
 
 2) Keras installation refers to https://keras.io/#installation
+
+---------------------------
+step 6: Install Pytorch
+1) refer to https://github.com/andrewadare/jetson-tx2-pytorch
+
+[issue 1]
+The following error appears if pytorch version is higher than v0.3.1
+[Error] ‘BatchNorm2d’ object has no attribute ‘track_running_stats’
+solution: install v0.3.1

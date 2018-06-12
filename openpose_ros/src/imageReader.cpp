@@ -11,13 +11,13 @@ ImageReader::ImageReader(ros::NodeHandle& nh, const std::string& image_path,
     : nh_(nh), it_(nh), image_path_(image_path), pub_rate_(pub_rate), OPENCV_WINDOW_{cv_window}
 {
     image_pub_ = it_.advertise("/image_reader/image_raw", 1);
-    cv::namedWindow(OPENCV_WINDOW_);
+//    cv::namedWindow(OPENCV_WINDOW_);
 }
 
 
 ImageReader::~ImageReader()
 {
-    cv::destroyWindow(OPENCV_WINDOW_);
+//    cv::destroyWindow(OPENCV_WINDOW_);
 }
 
 
@@ -41,8 +41,8 @@ int ImageReader::pubImageMsg()
  			
  			if(!image.empty())
  			{	
-			    cv::imshow(OPENCV_WINDOW_, image);
-			    cv::waitKey(10);
+//			    cv::imshow(OPENCV_WINDOW_, image);
+//			    cv::waitKey(10);
  				
  				image_msg_ = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
  				image_pub_.publish(image_msg_);

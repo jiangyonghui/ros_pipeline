@@ -1,4 +1,3 @@
-
 import numpy as np
 import cv2
 import ref
@@ -51,6 +50,7 @@ class Debugger(object):
     for xb, yb, zb in zip(Xb, Yb, Zb):
       self.ax.plot([xb], [yb], [zb], 'w')
     self.plt.show()
+    #self.plt.pause(0.001)
     
   def addImg(self, img, imgId = 0):
     self.imgs[imgId] = img.copy()
