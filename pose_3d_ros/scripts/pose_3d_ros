@@ -53,12 +53,12 @@ class pose_extractor:
       # TODO: pub some msg
       
       # debug and visualization
-      #debugger = Debugger()
-      #debugger.addImg((input[0].numpy().transpose(1, 2, 0)*256).astype(np.uint8))
-      #debugger.addPoint2D(pose2D, (255, 0, 0))
-      #debugger.addPoint3D(pose3D)
+      debugger = Debugger()
+      debugger.addImg((input[0].numpy().transpose(1, 2, 0)*256).astype(np.uint8))
+      debugger.addPoint2D(pose2D, (255, 0, 0))
+      debugger.addPoint3D(pose3D)
       #debugger.showImg()
-      #debugger.show3D()
+      debugger.show3D()
       
 
 # issue: latency of the first frame handling lies up to 1,5s !!!
