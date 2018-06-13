@@ -92,7 +92,7 @@ target_link_libraries(image_reader  ${catkin_LIBRARIES}
 add_dependencies(image_reader   ${catkin_EXPORTED_TARGETS})
 
 
-add_executable(pose_smoothing src/test_smoothing.cpp ${OPENPOSE_ROS_SRC_LIST})
+add_executable(pose_smoothing src/pose_smoothing.cpp ${OPENPOSE_ROS_SRC_LIST})
 target_link_libraries(pose_smoothing    ${catkin_LIBRARIES} 
 				   					    ${OPENPOSE_LIBRARY} 
 				   					    ${CAFFE_LIBRARY} 

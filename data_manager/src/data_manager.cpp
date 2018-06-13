@@ -59,7 +59,7 @@ DEFINE_string(h5_file_folder, 			"/home/nvidia/data/h5/", 					"Location of outp
 // setting default parameter values
 const std::vector<int> nodeSeq{8, 9, 8, 16, 12, 17, 12, 16, 8, 14, 15, 10, 15,
 							        14, 8, 4, 5, 0, 5, 4, 8, 6, 2, 7, 2, 6, 8};
-
+							        
 // node keypoints map
 std::shared_ptr<arma::mat> nodeKpWritePtr(new arma::mat);
 std::shared_ptr<arma::mat> nodeKpReadPtr(nodeKpWritePtr);
@@ -99,7 +99,8 @@ void nodeKpSubscriber()
 	// processing frame by frame
 	while (ros::ok())
 	{
-		// get body nodes from openpose
+		// get body nodes from openpose: just for a single person
+		// TODO: add multi person API
 		arma::rowvec nodeKeypoints(openposeKpSubscriber.getNodeKeypoints());
 		openposeKpSubscriber.resetNodeKeypoints();
         
@@ -142,8 +143,8 @@ void actionClassifier()
     ros::NodeHandle nh;
     ros::NodeHandle nh_p("~");
     
-    int tensor_repo_len = FLAGS_tensor_repo_len;
-    nh_p.getParam("tensor_repo_len", tensor_repo_len);
+    int tensor_repo_len;
+    nh_p.param<int>("tensor_repo_len", tensor_repo_len, FLAGS_tensor_repo_len);
     
 	ros::ServiceClient action_classifier_client =
 		nh.serviceClient<message_repository::ActionClassifier>("/pose_net/action_classifier");
@@ -164,12 +165,13 @@ void actionClassifier()
     const auto id_neck = it_neck - nodeSeq.begin();
     const auto id_rhip = it_rhip - nodeSeq.end();
 
-    // declare sliding window
+    // sliding window, later pass *nodePtr -> sWindow.slice(0)
     std::shared_ptr<arma::cube> sWindow(new arma::cube(n_frames, n_nodes, n_channels, arma::fill::zeros));
-    std::shared_ptr<arma::mat> nodePtr(new arma::mat);
+    std::shared_ptr<arma::mat> nodePtr(new arma::mat(n_frames, n_nodes, arma::fill::zeros));
     
 	ROS_INFO_STREAM("Initialize sliding window with size: [" << n_frames << "x" << n_nodes << "x" << n_channels << "]");
 	ROS_INFO("Ready for action classification ...");
+	op::log(" ");
 
 	// do the job
 	// fps: 4~5
@@ -183,37 +185,18 @@ void actionClassifier()
             // for frame 0-8
             if ((tensor_id+1) < n_frames)
             {
-                nodePtr->insert_rows(tensor_id, nodeKpReadPtr->row(tensor_id));
+                ROS_INFO_STREAM("Waiting for " << n_frames-tensor_id-1 << " more frames ...");
             }
             // for frame >= 9
             else
             {
                 // update frame mat: shed the first row, append new coming frame
-                if ((tensor_id+1) > n_frames)
-                {
-                    ROS_INFO("Updating Sliding Window ...");
-                    nodePtr->shed_row(0);
-                    nodePtr->insert_rows(n_frames-1, nodeKpReadPtr->row(tensor_id));
-                }
-                else
-                {
-                    nodePtr->insert_rows(tensor_id, nodeKpReadPtr->row(tensor_id));
-                    ROS_INFO("Got first Sliding Window, ready for classification ...");
-                }
-                
-                // when node repo reaches the maximal size
-                if (nodeKpReadPtr->n_rows == tensor_repo_len)
-                {
-                    std::lock_guard<std::mutex> lock(mutex);
-                    ROS_INFO_STREAM("Node Repository reaches size: " << tensor_repo_len);
-                    ROS_INFO_STREAM("Releasing data between Frame Nr.0 and Frame Nr." << tensor_id-n_frames);  
-                    nodeKpReadPtr->shed_rows(0, tensor_id-n_frames); 
-                    tensor_id = n_frames - 1;    
-                }
-                
+                ROS_INFO("Updating Sliding Window ...");
+                *nodePtr = nodeKpReadPtr->rows(tensor_id-n_frames+1, tensor_id);
+               
                 // do smoothing
                 // t: ~0.0025
-                poseInterpolator(*nodePtr);
+                poseInterpolator(*nodePtr, nodeSeq);
 
                 // normalization
                 // t: ~0.0002
@@ -249,6 +232,16 @@ void actionClassifier()
 			  	{
 					ROS_WARN("Calling Action Classification Service Failed!");
 			  	}
+			  	
+			  	// when node repo reaches the maximal size
+                if (nodeKpReadPtr->n_rows == tensor_repo_len)
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    ROS_INFO_STREAM("Node Repository reaches size: " << tensor_repo_len);
+                    ROS_INFO_STREAM("Releasing data between Frame Nr.0 and Frame Nr." << tensor_id-n_frames);  
+                    nodeKpReadPtr->shed_rows(0, tensor_id-n_frames); 
+                    tensor_id = n_frames - 1;    
+                }
             }
             
             op::log("----------------------------------------------------");

@@ -53,7 +53,7 @@ void OpenposeKpSub::subscriberCallback(const message_repository::PersonDetection
     // extract node keypoints from kp_msg and store them in node_kp_
 	ROS_INFO("Calling node keypoints extraction ...");
 	
-	// TODO: nodeKp_ and node_, std::shared_ptr ?
+	// TODO: nodeKp_ and node_, std::shared_ptr
 	std::vector<double> node_;
 	
 	for (auto bodypart_idx : node_seq_) 

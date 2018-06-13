@@ -21,9 +21,12 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "image_reader");
     
     ros::NodeHandle nh;
-    const double pub_rate = 0.5;
+    ros::NodeHandle nh_p("~");
+    double read_rate(FLAGS_read_rate);
     std::string image_path = data_folder + FLAGS_image_folder;
-    ImageReader imageReader(nh, image_path, FLAGS_read_rate, "Image Window");
+    nh_p.getParam("image_path", image_path);
+    nh_p.getParam("read_rate", read_rate);
+    ImageReader imageReader(nh, image_path, read_rate, "Image Window");
 
     return imageReader.pubImageMsg();
 }

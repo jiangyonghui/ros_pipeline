@@ -33,7 +33,7 @@ namespace data_manager
         {15, "RKnee"},
         {16, "RShoulder"},
         {17, "RWrist"},
-        {18, "Bkg"}
+        {18, "Background"}
 	};
 }
 
@@ -46,7 +46,7 @@ struct ActionessHistogram
 
 
 // pose keypoints interpolation
-void poseInterpolator(arma::mat& mat);
+void poseInterpolator(arma::mat& mat, const std::vector<int>& node_seq);
 
 // normalization
 void normTensor(arma::mat& node_mat, const op::Point<int>& imageSize, const int id_neck, const int id_rhip);
@@ -59,8 +59,5 @@ void EigenTensorToMsg(std::shared_ptr<arma::cube> tensorPtr, std_msgs::Float64Mu
 
 // write tensor to h5 file
 //void WriteTenforRepo(const Eigen::Tensor<float, 3>& tensorRepo, std::vector<int>& tensor_shape, std::string& file_name);
-
-// optional: plot actionness proposal --> TODO
-// void PlotActionnessProposal(...)
 
 #endif
